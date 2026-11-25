@@ -169,8 +169,9 @@
   }
 
   // ---------- 화면: 병원용 요약 ----------
-  function vSummary() {
-    const p = P(), N = now(), from = N - period * 30 * DAY, days = period * 30, B = btns(p);
+  // 요약 데이터 (화면·복사·이미지가 같이 씀). 값은 이스케이프 전 원문
+  function summaryData(p) {
+    const N = now(), from = N - period * 30 * DAY, days = period * 30, B = btns(p);
     const PL = logsOf(p), L = PL.filter((l) => l.t >= from), cnt = (k) => L.filter((l) => l.k === k).length;
     const rows = [];
     const ws = S.weights.filter((w) => w.pid === p.id && w.t >= from).sort((a, b) => a.t - b.t), wf = ws[0], wl = ws[ws.length - 1], wp = wf && wl ? ((wl.kg - wf.kg) / wf.kg) * 100 : 0;
@@ -187,26 +188,90 @@
     }
     const tally = (keys) => { const m = {}; L.forEach((l) => { if (keys.includes(l.k) && l.food) m[l.food] = (m[l.food] || 0) + 1; }); return Object.entries(m).sort((a, b) => b[1] - a[1]); };
     const foodsUsed = tally(["breakfast", "dinner"]);
-    if (foodsUsed.length) rows.push(["먹은 사료", foodsUsed.slice(0, 3).map(([f, n]) => `${esc(f)} ${n}회`).join(", "), false]);
+    if (foodsUsed.length) rows.push(["먹은 사료", foodsUsed.slice(0, 3).map(([f, n]) => `${f} ${n}회`).join(", "), false]);
     const snacks = L.filter((l) => l.k === "snack");
-    if (snacks.length) { const st = tally(["snack"]); const sd = Math.max(1, Math.round((N - Math.max(from, Math.min(...PL.map((l) => l.t)))) / DAY)); rows.push(["간식", `${snacks.length}회, 하루 평균 ${(snacks.length / sd).toFixed(1)}회${st.length ? " (" + st.slice(0, 3).map(([f, n]) => `${esc(f)} ${n}`).join(", ") + ")" : ""}`, false]); }
+    if (snacks.length) { const st = tally(["snack"]); const sd = Math.max(1, Math.round((N - Math.max(from, Math.min(...PL.map((l) => l.t)))) / DAY)); rows.push(["간식", `${snacks.length}회, 하루 평균 ${(snacks.length / sd).toFixed(1)}회${st.length ? " (" + st.slice(0, 3).map(([f, n]) => `${f} ${n}`).join(", ") + ")" : ""}`, false]); }
     const mealN = cnt("breakfast") + cnt("dinner");
     if (mealN) { const firstLog = Math.max(from, Math.min(...PL.map((l) => l.t))); const d = Math.max(1, Math.round((N - firstLog) / DAY)); rows.push(["식사", Math.min(100, Math.round((mealN / (d * 2)) * 100)) + "%", false]); }
     B.filter((b) => b.type === "count").forEach((b) => { const c = cnt(b.k); if (!c) return; const rec = PL.filter((l) => l.k === b.k && l.t >= N - 28 * DAY).length / 28; rows.push([b.label, `하루 평균 ${(c / days).toFixed(1)}회 (최근 4주 ${rec.toFixed(1)}회)`, rec > (c / days) * 1.2 && rec >= 1]); });
     const walks = L.filter((l) => l.k === "walk");
     if (walks.length) rows.push(["산책", `${walks.length}회, 평균 ${Math.round(walks.reduce((a, b) => a + (b.min || 0), 0) / walks.length)}분`, false]);
     const notes = L.filter((l) => l.k === "note").sort((a, b) => b.t - a.t), sch = nextSchedules(p);
+    return { p, from, N, rows, notes, sch, ws,
+      basics: [["종류 · 정보", (p.species === "cat" ? "고양이" : "강아지") + (info(p) ? " · " + info(p) : "")], ["진단받은 질환", p.dx || "없음"], ["알레르기", p.allergy || "없음"], ["매일 먹는 약", p.meds || "없음"]] };
+  }
+  function vSummary() {
+    const D = summaryData(P()), { p, from, N, rows, notes, sch } = D;
     return `<section><h2>병원용 한 장 요약</h2>
     <div class="seg" role="group" aria-label="기간">${[1, 3, 6].map((m) => `<button data-period="${m}" aria-pressed="${m === period}" type="button">최근 ${m}개월</button>`).join("")}</div>
     <article class="sheet" id="sheet"><div class="hd"><b>${esc(p.name)} 진료 참고 기록</b><span>${ymd(from)} ~ ${ymd(N)}</span></div>
-      <h3>기본 정보</h3><table><tr><td>종류 · 정보</td><td>${p.species === "cat" ? "고양이" : "강아지"}${info(p) ? " · " + esc(info(p)) : ""}</td></tr>
-      <tr><td>진단받은 질환</td><td>${esc(p.dx || "없음")}</td></tr><tr><td>알레르기</td><td>${esc(p.allergy || "없음")}</td></tr><tr><td>매일 먹는 약</td><td>${esc(p.meds || "없음")}</td></tr></table>
-      <h3>기간 중 변화</h3><table>${rows.map(([a, b, f]) => `<tr><td>${a}</td><td class="num${f ? " flag" : ""}">${b}</td></tr>`).join("")}</table>
+      <h3>기본 정보</h3><table>${D.basics.map(([a, b]) => `<tr><td>${a}</td><td>${esc(b)}</td></tr>`).join("")}</table>
+      <h3>기간 중 변화</h3><table>${rows.map(([a, b, f]) => `<tr><td>${esc(a)}</td><td class="num${f ? " flag" : ""}">${esc(b)}</td></tr>`).join("")}</table>
       <h3>보호자 메모</h3>${notes.length ? `<ul>${notes.map((n) => `<li>${md(n.t)} ${esc(n.text)} (${esc(n.by)})</li>`).join("")}</ul>` : '<div class="note">메모 없음</div>'}
       <h3>예방·접종</h3><table>${sch.length ? sch.map((s) => `<tr><td>${esc(s.name)}</td><td class="num">${ymd(s.last)}</td></tr>`).join("") : '<tr><td colspan="2">등록된 일정 없음</td></tr>'}</table>
       <div class="note">보호자가 앱에 기록한 내용을 정리한 것으로, 진단이 아닙니다.</div></article>
-    <div class="lock"><button class="btn" data-act="copy" type="button">글자로 복사</button></div>
-    <div class="note">빨간 글씨는 숫자가 크게 바뀐 항목이에요. 진료실에서 이 화면을 그대로 보여 주거나, 복사해서 카톡으로 보내세요.</div></section>`;
+    <div class="lock"><button class="btn" data-act="image" type="button">이미지로 저장·공유</button><button class="btn ghost" data-act="copy" type="button">글자로 복사</button></div>
+    <div class="note">빨간 글씨는 숫자가 크게 바뀐 항목이에요. 진료실에서 이 화면을 보여 주거나, 이미지로 저장해 카톡으로 보내세요.</div></section>`;
+  }
+
+  // ---------- 요약 이미지 (캔버스로 직접 그림, 외부 라이브러리 없음) ----------
+  async function summaryImage() {
+    const D = summaryData(P()), { p, from, N, rows, notes, sch, ws } = D;
+    try { if (document.fonts && document.fonts.ready) await document.fonts.ready; } catch (_) {}
+    const W = 1080, PAD = 64, LW = 300, F = '"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",sans-serif';
+    const C = { bg: "#FFFFFF", ink: "#18272B", muted: "#5B6B6F", rule: "#D5DFDC", accent: "#17715F", crit: "#B33A3A", soft: "#E1F0EC" };
+    const cv = document.createElement("canvas"); cv.width = W; cv.height = 6000; const x = cv.getContext("2d");
+    x.fillStyle = C.bg; x.fillRect(0, 0, W, cv.height); x.textBaseline = "alphabetic";
+    const font = (sz, wt) => (x.font = `${wt || 400} ${sz}px ${F}`);
+    // 띄어쓰기 단위로 줄바꿈, 한 단어가 너무 길면 글자 단위로
+    const wrap = (text, maxW) => { const out = []; let line = "";
+      for (const word of String(text).split(/(\s+)/)) { if (!word) continue;
+        if (x.measureText(line + word).width <= maxW) { line += word; continue; }
+        if (line.trim()) { out.push(line.trimEnd()); line = ""; } if (!word.trim()) continue;
+        for (const ch of word) { if (x.measureText(line + ch).width > maxW && line) { out.push(line); line = ""; } line += ch; } }
+      if (line.trim()) out.push(line.trimEnd()); return out.length ? out : [""]; };
+    let y = PAD + 52;
+    font(52, 700); x.fillStyle = C.ink; x.fillText(p.name + " 진료 참고 기록", PAD, y);
+    y += 44; font(28); x.fillStyle = C.muted; x.fillText(ymd(from) + " ~ " + ymd(N) + " · 보호자 기록", PAD, y);
+    y += 26; x.fillStyle = C.ink; x.fillRect(PAD, y, W - PAD * 2, 4); y += 20;
+    const section = (t) => { y += 40; font(26, 600); x.fillStyle = C.muted; x.fillText(t, PAD, y); y += 14; };
+    const row = (a, b, flag) => {
+      font(30); const labs = wrap(a, LW - 24); font(30, flag ? 700 : 400); const lines = wrap(b, W - PAD * 2 - LW); const h = 30 + Math.max(lines.length, labs.length) * 42;
+      font(30); x.fillStyle = C.muted; labs.forEach((ln, i) => x.fillText(ln, PAD, y + 42 + i * 42));
+      font(30, flag ? 700 : 400); x.fillStyle = flag ? C.crit : C.ink; lines.forEach((ln, i) => x.fillText(ln, PAD + LW, y + 42 + i * 42));
+      y += h; x.fillStyle = C.rule; x.fillRect(PAD, y, W - PAD * 2, 2);
+    };
+    section("기본 정보"); D.basics.forEach(([a, b]) => row(a, b, false));
+    section("기간 중 변화"); rows.forEach(([a, b, f]) => row(a, b, f));
+    if (ws.length > 1) { // 체중 추이 작은 그래프
+      y += 24; const gx = PAD + LW, gw = W - PAD * 2 - LW, gh = 150, lo = Math.min(...ws.map((w) => w.kg)), hi = Math.max(...ws.map((w) => w.kg)), t0 = ws[0].t, t1 = ws[ws.length - 1].t;
+      const X = (t) => gx + ((t - t0) / (t1 - t0 || 1)) * gw, Y = (v) => y + gh - ((v - lo) / (hi - lo || 1)) * (gh - 20) - 10;
+      font(24); x.fillStyle = C.muted; x.fillText("체중 추이", PAD, y + 34); x.fillText(hi.toFixed(2) + "kg", PAD, y + 70); x.fillText(lo.toFixed(2) + "kg", PAD, y + gh);
+      x.strokeStyle = C.accent; x.lineWidth = 4; x.lineJoin = "round"; x.beginPath(); ws.forEach((w, i) => (i ? x.lineTo(X(w.t), Y(w.kg)) : x.moveTo(X(w.t), Y(w.kg)))); x.stroke();
+      x.fillStyle = C.accent; ws.forEach((w) => { x.beginPath(); x.arc(X(w.t), Y(w.kg), 6, 0, 7); x.fill(); });
+      font(22); x.fillStyle = C.muted; x.fillText(md(t0), gx, y + gh + 30); x.textAlign = "right"; x.fillText(md(t1), gx + gw, y + gh + 30); x.textAlign = "left";
+      y += gh + 44; x.fillStyle = C.rule; x.fillRect(PAD, y, W - PAD * 2, 2);
+    }
+    section("보호자 메모");
+    if (notes.length) notes.slice(0, 8).forEach((n) => { font(30); wrap(md(n.t) + "  " + n.text + " (" + n.by + ")", W - PAD * 2).forEach((ln) => { y += 44; x.fillStyle = C.ink; x.fillText(ln, PAD, y); }); });
+    else { y += 44; font(30); x.fillStyle = C.muted; x.fillText("메모 없음", PAD, y); }
+    y += 14; section("예방·접종");
+    if (sch.length) sch.forEach((s) => row(s.name, ymd(s.last) + " (다음 " + ymd(s.due) + ")", false)); else row("등록된 일정", "없음", false);
+    y += 48; font(24); x.fillStyle = C.muted; x.fillText("보호자가 앱에 기록한 내용을 정리한 것으로, 진단이 아닙니다.", PAD, y);
+    y += 56; x.fillStyle = C.soft; x.fillRect(0, y, W, 72); font(26, 600); x.fillStyle = C.accent; x.fillText("댕냥차트", PAD, y + 46); font(24); x.fillStyle = C.muted; x.textAlign = "right"; x.fillText(location.host, W - PAD, y + 46); x.textAlign = "left";
+    y += 72;
+    const out = document.createElement("canvas"); out.width = W; out.height = y; out.getContext("2d").drawImage(cv, 0, 0);
+    return new Promise((res) => out.toBlob((b) => res(b), "image/png"));
+  }
+  async function shareSummaryImage() {
+    toast("이미지를 만드는 중이에요");
+    const blob = await summaryImage(); if (!blob) { toast("이미지를 만들지 못했어요"); return; }
+    const name = P().name + "-진료기록-" + iso(now()) + ".png", file = new File([blob], name, { type: "image/png" });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ files: [file], title: P().name + " 진료 참고 기록" }); return; } catch (e) { if (e && e.name === "AbortError") return; }
+    }
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+    toast("이미지를 저장했어요");
   }
 
   // ---------- 화면: 설정 ----------
@@ -296,6 +361,7 @@
       case "clear-demo": S = blank(); save(); tab = "today"; render(); return;
       case "export": download("댕냥차트-백업-" + iso(now()) + ".json", JSON.stringify(S)); toast("백업 파일을 저장했어요"); return;
       case "wipe": if (!S.confirmWipe) { S.confirmWipe = true; render(); return; } S = blank(); save(); tab = "today"; editing = null; toast("모든 기록을 지웠어요"); render(); return;
+      case "image": shareSummaryImage(); return;
       case "copy": { const txt = $("#sheet").innerText; const sel = () => { const r = document.createRange(); r.selectNodeContents($("#sheet")); const s = getSelection(); s.removeAllRanges(); s.addRange(r); };
         if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(() => toast("복사했어요. 카톡이나 문자에 붙여 넣으세요"), () => { sel(); toast("내용을 선택해 두었어요. 복사를 눌러 주세요"); }); else sel(); return; }
     }
