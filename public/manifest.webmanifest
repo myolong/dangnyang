@@ -1,0 +1,16 @@
+{
+  "name": "댕냥차트",
+  "short_name": "댕냥차트",
+  "description": "강아지·고양이 기록을 가족이 함께 쌓고 병원 갈 때 한 장으로 보여 주는 앱",
+  "lang": "ko",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#F3F6F5",
+  "theme_color": "#17715F",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>댕냥차트</title>
+<meta name="description" content="강아지·고양이 산책, 밥, 약, 체중, 접종을 가족이 함께 기록하고 병원 갈 때 한 장으로 보여 주는 앱">
+<meta name="theme-color" content="#17715F">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="댕냥차트">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="/style.css">
+<style>:root{padding-top:env(safe-area-inset-top,0px)}body{margin:0}</style>
+</head>
+<body>
+<div class="app">
+  <div class="top"><span class="logo">댕냥<span>차트</span></span><button class="iconbtn" data-tab="settings" type="button">설정</button></div>
+  <div id="banner"></div>
+  <div class="pets" id="pets" role="group" aria-label="아이 선택"></div>
+  <header class="pet" id="pethead"></header>
+  <main id="view"></main>
+</div>
+<nav class="tabs" id="tabs" aria-label="메뉴"><div class="in">
+  <button data-tab="today" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 11l8-6 8 6v8a1 1 0 0 1-1 1h-4v-5h-6v5H5a1 1 0 0 1-1-1z"/></svg>오늘</button>
+  <button data-tab="weight" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 18l5-6 4 3 7-8"/></svg>체중</button>
+  <button data-tab="schedule" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>일정</button>
+  <button data-tab="summary" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 3h7l4 4v14H7z"/><path d="M10 12h5M10 16h5"/></svg>병원용 요약</button>
+</div></nav>
+<div class="toast" id="toast" hidden></div>
+<script src="/app.js"></script>
+<script>if('serviceWorker' in navigator){addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{}))}</script>
+</body>
+</html>
