@@ -51,6 +51,14 @@
   const age = (p) => { if (!p.birth) return ""; const b = new Date(fromIso(p.birth)), n = new Date(); let y = n.getFullYear() - b.getFullYear(); if (n.getMonth() < b.getMonth() || (n.getMonth() === b.getMonth() && n.getDate() < b.getDate())) y--; return y < 1 ? "1살 미만" : y + "살"; };
   const info = (p) => [p.breed, age(p), p.sex].filter(Boolean).join(" · ");
   const tags = (p) => [].concat((p.dx || "").split(",").map((s) => s.trim()).filter((s) => s && s !== "없음"), p.allergy && p.allergy !== "없음" ? [p.allergy + " 알레르기"] : []);
+  const CAM = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>';
+  const bg = (p) => (p.photo ? ` style="background-image:url(${p.photo})"` : "");
+  // 증명사진 칸: 누르면 사진 고르기
+  const photoBox = (p, cls) => `<button type="button" class="photo ${cls || ""}${p.photo ? " has" : ""}" data-act="photo" data-pid="${p.id}" aria-label="${esc(p.name)} 사진 ${p.photo ? "바꾸기" : "넣기"}"${bg(p)}><span class="ph">${CAM}<span>사진 넣기</span></span><span class="chg">바꾸기</span></button>`;
+  const mini = (p) => `<span class="mini"${bg(p)}>${p.photo ? "" : esc((p.name || "?").slice(0, 1))}</span>`;
+  const chartNo = (p) => "No." + String(S.pets.indexOf(p) + 1).padStart(4, "0");
+  const wd = (t) => "일월화수목금토"[new Date(t).getDay()];
+  const lastWeight = (p) => { const ws = S.weights.filter((w) => w.pid === p.id).sort((a, b) => a.t - b.t); if (!ws.length) return null; const l = ws[ws.length - 1], base = ws.filter((w) => w.t <= l.t - 50 * DAY).pop() || ws[0]; return { kg: l.kg, d: l.kg - base.kg, pct: ((l.kg - base.kg) / base.kg) * 100, since: base.t }; };
   const FOODTYPE = { breakfast: "foods", dinner: "foods", snack: "snacks" };
   // 최근에 쓴 것이 앞에 오도록 사료·간식 목록 정렬
   function itemsFor(p, k) {
@@ -72,6 +80,7 @@
   function petForm(p) {
     p = p || { species: "dog" };
     return `<form class="form card" id="petform">
+      ${p.id ? `<div class="photoset">${photoBox(p, "sm")}<div class="r"><span class="note" style="margin:0">사진을 누르면 앨범에서 고를 수 있어요. 사진은 이 휴대폰에만 저장돼요.</span>${p.photo ? `<button class="iconbtn" data-act="photo-del" data-pid="${p.id}" type="button">사진 빼기</button>` : ""}</div></div>` : ""}
       <label>이름<input id="f-name" required maxlength="20" value="${esc(p.name)}" placeholder="예: 보리" autocomplete="off"></label>
       <div class="r" role="radiogroup" aria-label="종류"><label style="display:flex;gap:6px;align-items:center;color:var(--ink)"><input type="radio" name="sp" value="dog" ${p.species !== "cat" ? "checked" : ""}> 강아지</label>
       <label style="display:flex;gap:6px;align-items:center;color:var(--ink)"><input type="radio" name="sp" value="cat" ${p.species === "cat" ? "checked" : ""}> 고양이</label></div>
@@ -85,7 +94,7 @@
     </form>`;
   }
   function vWelcome() {
-    return `<div class="welcome"><h1>병원 갈 때 내미는 한 장</h1>
+    return `<div class="welcome"><h1>병원 갈 때 내미는 진료기록 한 장</h1>
     <p>산책, 밥, 약, 체중, 접종을 한 번 눌러 기록하고, 동물병원에서는 최근 기록을 한 장으로 보여 주세요. 강아지와 고양이를 함께 등록할 수 있어요.</p>
     ${petForm()}
     <p class="note" style="margin-top:14px">먼저 둘러보고 싶으시면 <button class="iconbtn" data-act="demo" type="button">예시로 둘러보기</button></p>
@@ -96,11 +105,11 @@
   function pending(p) { const t0 = sod(now()); return checks(p).filter(([k]) => !S.logs.some((l) => l.pid === p.id && l.k === k && l.t >= t0)).map((c) => c[1]); }
   function vToday() {
     const p = P(), t0 = sod(now()), today = logsOf(p).filter((l) => l.t >= t0).sort((a, b) => b.t - a.t);
-    const has = (k) => today.find((l) => l.k === k);
-    const st = (k, lab) => { const l = has(k); return `<div class="st ${l ? "ok" : "todo"}"><b>${lab}</b><span class="v">${l ? hm(l.t) + " · " + esc(l.by) : "아직 안 했어요"}</span></div>`; };
-    const btn = (b) => `<button class="qb${b.type === "sym" ? " sym" : ""}" data-log="${b.k}" type="button"><span class="ic">${b.ic}</span><span>${b.label}</span></button>`;
-    const up = nextSchedules(p).slice(0, 2);
-    const house = S.pets.length > 1 ? `<section><h2>우리 집 오늘 <span class="pill">${S.pets.length}마리</span></h2><div class="home">${S.pets.map((q) => { const pd = pending(q); return `<div class="h"><span class="mini">${ICON[q.species]}</span><div><b>${esc(q.name)}</b> <span class="${pd.length ? "todo" : "done"}">${pd.length ? pd.join(", ") + " 아직" : "오늘 챙길 것 다 했어요"}</span></div></div>`; }).join("")}</div></section>` : "";
+    const lastOf = (k) => today.find((l) => l.k === k);
+    const ck = checks(p), doneN = ck.filter(([k]) => lastOf(k)).length;
+    const sub = (b, l) => { if (!l) return b.type === "sym" ? "있으면 누르기" : "누르면 기록"; const n = today.filter((x) => x.k === b.k).length; return hm(l.t) + (l.food ? " " + l.food : l.min ? " · " + l.min + "분" : n > 1 ? " · " + n + "회" : ""); };
+    const btn = (b) => { const l = lastOf(b.k); return `<button class="qb${b.type === "sym" ? " sym" : ""}${l && b.type !== "note" ? " done" : ""}" data-log="${b.k}" type="button"><b>${b.label}</b><em>${esc(sub(b, l))}</em></button>`; };
+    const house = S.pets.length > 1 ? `<section><h2><span><span class="en">HOME</span>우리 집 오늘</span><span class="pill">${S.pets.length}마리</span></h2><div class="home">${S.pets.map((q) => { const pd = pending(q); return `<div class="h">${mini(q)}<div><b>${esc(q.name)}</b><span class="${pd.length ? "todo" : "done"}">${pd.length ? pd.join(", ") + " 아직" : "오늘 챙길 것 다 했어요"}</span></div></div>`; }).join("")}</div></section>` : "";
     let pk = "";
     if (picker === "walk") pk = `<div class="picker" role="group" aria-label="산책 시간"><span>몇 분 걸었나요?</span>${[10, 20, 30, 45, 60].map((m) => `<button data-walk="${m}" type="button">${m}분</button>`).join("")}</div>`;
     if (FOODTYPE[picker]) {
@@ -112,56 +121,59 @@
     }
     if (picker === "note") pk = `<form class="picker form" id="noteform" style="display:grid"><label style="color:var(--ink)">병원에 전할 메모<textarea id="notetext" rows="2" maxlength="200" placeholder="예: 밤에 기침하고 숨이 조금 가빠 보임"></textarea></label><div class="r"><button class="btn" type="submit">저장</button><button class="btn ghost" type="button" data-act="close-picker">취소</button></div></form>`;
     return `${house}
-    <section><h2>${esc(p.name)} 한 번 눌러 기록</h2><div class="grid">${btns(p).map(btn).join("")}</div>${pk}</section>
-    <section><h2>오늘 챙길 것</h2><div class="status">${checks(p).map(([k, l]) => st(k, l)).join("")}</div></section>
-    <section><h2>다가오는 일정</h2><div class="list">${up.length ? up.map((s) => schRow(s, false)).join("") : '<div class="empty">일정 탭에서 접종·구충 일정을 넣으면 여기 보여요</div>'}</div></section>
-    <section><h2>오늘 기록 <span class="pill">${today.length}건</span></h2>
-    <div class="list">${today.length ? today.map((l) => `<div class="row${(btns(p).find((b) => b.k === l.k) || {}).type === "sym" ? " sym" : ""}"><span class="time">${hm(l.t)}</span><span class="what">${label(p, l.k)}${l.food ? " · " + esc(l.food) : ""}${l.min ? " " + l.min + "분" : ""}${l.text ? " · " + esc(l.text) : ""}</span><span class="who">${esc(l.by)}</span><button class="del" data-dellog="${l.id}" aria-label="이 기록 지우기" type="button">×</button></div>`).join("") : '<div class="empty">아직 기록이 없어요. 위 버튼을 눌러 보세요.</div>'}</div></section>`;
+    <section><h2><span><span class="en">TODAY</span>오늘 기록</span><span class="pill">챙길 것 ${doneN} / ${ck.length}</span></h2>
+    <div class="prog" style="grid-template-columns:repeat(${ck.length},1fr)" aria-hidden="true">${ck.map(([k]) => `<i class="${lastOf(k) ? "f" : ""}"></i>`).join("")}</div>
+    <div class="grid">${btns(p).map(btn).join("")}</div>${pk}</section>
+    <section><h2><span><span class="en">LOG</span>오늘 기록한 것</span><span class="pill">${today.length}건</span></h2>
+    <div class="list">${today.length ? today.map((l) => `<div class="row${(btns(p).find((b) => b.k === l.k) || {}).type === "sym" ? " sym" : ""}"><span class="time">${hm(l.t)}</span><span class="what">${label(p, l.k)}${l.food ? " · " + esc(l.food) : ""}${l.min ? " " + l.min + "분" : ""}${l.text ? " · " + esc(l.text) : ""}</span><span class="who">${esc(l.by)}</span><button class="del" data-dellog="${l.id}" aria-label="이 기록 지우기" type="button">×</button></div>`).join("") : '<div class="empty">아직 기록이 없어요. 위 칸을 눌러 보세요.</div>'}</div></section>`;
   }
 
   // ---------- 화면: 체중 ----------
   function weightChart(ws) {
-    const W = 340, H = 170, pd = { l: 36, r: 12, t: 14, b: 26 };
+    const W = 340, H = 176, pd = { l: 36, r: 14, t: 18, b: 26 };
     const xs = ws.map((w) => w.t), ys = ws.map((w) => w.kg);
     const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.floor((Math.min(...ys) - 0.1) * 10) / 10, y1 = Math.ceil((Math.max(...ys) + 0.1) * 10) / 10;
     const X = (t) => pd.l + ((t - x0) / (x1 - x0 || 1)) * (W - pd.l - pd.r), Y = (v) => pd.t + ((y1 - v) / (y1 - y0 || 1)) * (H - pd.t - pd.b);
     const span = y1 - y0, step = span > 4 ? 1 : span > 2 ? 0.5 : span > 0.8 ? 0.2 : 0.1;
     const ticks = []; for (let v = Math.ceil(y0 / step) * step; v <= y1 + 1e-9; v += step) ticks.push(+v.toFixed(1));
-    const path = ws.map((w, i) => (i ? "L" : "M") + X(w.t).toFixed(1) + " " + Y(w.kg).toFixed(1)).join(" ");
-    const area = path + ` L${X(x1).toFixed(1)} ${H - pd.b} L${X(x0).toFixed(1)} ${H - pd.b} Z`;
+    const pts = ws.map((w) => X(w.t).toFixed(1) + "," + Y(w.kg).toFixed(1)).join(" ");
     const last = ws[ws.length - 1], first = ws[0];
+    // 최근 4주 사이 줄었으면 그 구간을 붉게
+    const rec = ws.filter((w) => w.t >= last.t - 28 * DAY), drop = rec.length > 1 && (rec[rec.length - 1].kg - rec[0].kg) / rec[0].kg <= -0.02;
     return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="체중 변화 그래프">
-      ${ticks.map((v) => `<line x1="${pd.l}" x2="${W - pd.r}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--line)"/><text x="${pd.l - 6}" y="${Y(v) + 4}" text-anchor="end" font-size="10.5" fill="var(--muted)" font-family="var(--f-num)">${v.toFixed(1)}</text>`).join("")}
-      <path d="${area}" fill="var(--accent)" fill-opacity=".1"/><path d="${path}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round"/>
-      ${ws.map((w) => `<circle cx="${X(w.t)}" cy="${Y(w.kg)}" r="2.5" fill="var(--accent)"/>`).join("")}
-      <circle cx="${X(last.t)}" cy="${Y(last.kg)}" r="5" fill="var(--surface)" stroke="var(--accent)" stroke-width="2"/>
-      <text x="${X(first.t)}" y="${H - 8}" font-size="10.5" fill="var(--muted)">${md(first.t)}</text><text x="${X(last.t)}" y="${H - 8}" text-anchor="end" font-size="10.5" fill="var(--muted)">${md(last.t)}</text></svg>`;
+      ${ticks.map((v) => `<line x1="${pd.l}" x2="${W - pd.r}" y1="${Y(v)}" y2="${Y(v)}" stroke="#D9E2EC"/><text x="${pd.l - 6}" y="${Y(v) + 4}" text-anchor="end" font-size="10" fill="#5B7598" font-family="IBM Plex Mono,monospace">${v.toFixed(1)}</text>`).join("")}
+      ${drop ? `<rect x="${X(rec[0].t)}" y="${pd.t}" width="${Math.max(4, X(last.t) - X(rec[0].t))}" height="${H - pd.t - pd.b}" fill="#C8372D" fill-opacity=".08"/><text x="${X(last.t)}" y="${pd.t - 5}" text-anchor="end" font-size="10" fill="#C8372D">최근 4주 줄어듦</text>` : ""}
+      <polyline points="${pts}" fill="none" stroke="#173B6C" stroke-width="2" stroke-linejoin="round"/>
+      ${ws.map((w, i) => { const e = i === ws.length - 1, c = e ? "#C8372D" : "#173B6C"; return `<rect x="${X(w.t) - 3}" y="${Y(w.kg) - 3}" width="6" height="6" fill="${e ? c : "#fff"}" stroke="${c}" stroke-width="1.5"/>`; }).join("")}
+      <text x="${X(first.t)}" y="${H - 8}" font-size="10" fill="#5B7598" font-family="IBM Plex Mono,monospace">${md(first.t)}</text><text x="${X(last.t)}" y="${H - 8}" text-anchor="end" font-size="10" fill="#5B7598" font-family="IBM Plex Mono,monospace">${md(last.t)}</text></svg>`;
   }
   function vWeight() {
     const p = P(), all = S.weights.filter((w) => w.pid === p.id).sort((a, b) => a.t - b.t), ws = all.filter((w) => w.t >= now() - 183 * DAY);
     const form = `<form class="addw" id="wform"><label for="wkg" style="position:absolute;left:-9999px">오늘 체중</label><input id="wkg" inputmode="decimal" placeholder="오늘 체중 kg (예: 3.55)" autocomplete="off"><button class="btn" type="submit">기록</button></form>`;
-    if (!all.length) return `<section><h2>${esc(p.name)} 체중</h2><div class="card"><div class="empty">아직 체중 기록이 없어요. 첫 체중을 넣어 주세요.</div>${form}</div></section>`;
+    if (!all.length) return `<section><h2><span><span class="en">WEIGHT</span>${esc(p.name)} 체중</span></h2><div class="card"><div class="empty">아직 체중 기록이 없어요. 첫 체중을 넣어 주세요.</div>${form}</div></section>`;
     const last = all[all.length - 1], first = ws[0] || last, pct = ((last.kg - first.kg) / first.kg) * 100;
-    return `<section><h2>${esc(p.name)} 체중 <span class="pill">최근 6개월</span></h2><div class="card">
-      <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap"><span class="big">${last.kg.toFixed(2)}<small style="font-size:15px"> kg</small></span>
-      ${ws.length > 1 ? `<span class="delta" style="${pct > -5 ? "color:var(--muted)" : ""}">${pct >= 0 ? "+" : ""}${pct.toFixed(1)}% (${md(first.t)} ${first.kg.toFixed(2)}kg 대비)</span>` : ""}</div>
-      ${ws.length > 1 ? `<div class="chart" style="margin-top:8px">${weightChart(ws)}</div>` : ""}${form}
-      <div class="note">6개월 사이 5% 넘게 줄면 병원용 요약에 빨간 표시가 붙어요. 원인 판단은 수의사 몫이고, 앱은 숫자만 보여 줘요.</div></div></section>
-      <section><h2>체중 기록</h2><div class="list">${all.slice().reverse().slice(0, 12).map((w) => `<div class="row"><span class="time">${md(w.t)}</span><span class="what">${w.kg.toFixed(2)} kg</span><button class="del" data-delw="${w.id}" aria-label="이 체중 기록 지우기" type="button">×</button></div>`).join("")}</div></section>`;
+    const rows = all.slice().reverse().slice(0, 12).map((w, i, a) => { const pr = a[i + 1], d = pr ? w.kg - pr.kg : null; return `<tr><td class="n">${ymd(w.t).slice(2)}</td><td class="n">${w.kg.toFixed(2)} kg</td><td class="n ${d == null ? "" : d < 0 ? "dn" : d > 0 ? "up" : ""}">${d == null ? "" : (d > 0 ? "+" : "") + d.toFixed(2)}</td><td>${esc(w.by || "")}</td><td><button class="del" data-delw="${w.id}" aria-label="이 체중 기록 지우기" type="button">×</button></td></tr>`; }).join("");
+    return `<section><h2><span><span class="en">WEIGHT</span>${esc(p.name)} 체중</span><span class="pill">최근 6개월</span></h2><div class="card">
+      <div class="bignum"><span class="big">${last.kg.toFixed(2)}<small>kg · ${md(last.t)} 측정</small></span>
+      ${ws.length > 1 ? `<span class="delta${pct <= -5 ? " dn" : ""}">${pct >= 0 ? "+" : ""}${pct.toFixed(1)}% (${md(first.t)} 대비)</span>` : ""}</div>
+      ${ws.length > 1 ? `<div class="chart">${weightChart(ws)}</div>` : ""}${form}</div>
+      <div class="note">6개월 사이 5% 넘게 줄면 빨간색으로 표시하고 병원용 요약에도 적어요. 원인 판단은 수의사 몫이고, 앱은 숫자만 보여 줘요.</div></section>
+      <section><h2><span><span class="en">RECORD</span>체중 기록</span></h2><div class="list"><table class="tbl"><thead><tr><th>날짜</th><th>체중</th><th>변화</th><th>기록</th><th></th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
   }
 
   // ---------- 화면: 일정 ----------
   function nextSchedules(p) { return S.sch.filter((s) => s.pid === p.id).map((s) => { const due = s.last + s.every * DAY; return Object.assign({ due, left: Math.round((sod(due) - sod(now())) / DAY) }, s); }).sort((a, b) => a.due - b.due); }
+  const ddText = (s) => (s.left === 0 ? "D-day" : s.left > 0 ? "D-" + s.left : "D+" + -s.left);
   function schRow(s, withDel) {
-    const cls = s.left < 0 ? "over" : s.left <= 7 ? "soon" : "", dd = s.left === 0 ? "D-day" : s.left > 0 ? "D-" + s.left : "D+" + -s.left;
-    return `<div class="sch"><span class="dday ${cls}">${dd}</span><span class="what">${esc(s.name)}<small>마지막 ${ymd(s.last)} · ${s.every}일마다 · 다음 ${ymd(s.due)}</small></span><button data-done="${s.id}" type="button">오늘 함</button>${withDel ? `<button class="del" data-delsch="${s.id}" aria-label="일정 지우기" type="button">×</button>` : ""}</div>`;
+    const cls = s.left < 0 ? "over" : s.left <= 7 ? "soon" : "";
+    return `<div class="sch"><span class="what">${esc(s.name)}<small>${s.every}일마다 · 마지막 ${ymd(s.last).slice(2)} · 다음 ${ymd(s.due).slice(2)}</small></span><span class="dday ${cls}">${ddText(s)}</span><button class="dbtn" data-done="${s.id}" type="button">오늘 함</button>${withDel ? `<button class="del" data-delsch="${s.id}" aria-label="${esc(s.name)} 일정 지우기" type="button">×</button>` : ""}</div>`;
   }
   function vSchedule() {
     const p = P(), list = nextSchedules(p);
     const presets = p.species === "cat" ? [["외부 구충제", 30], ["종합백신", 365], ["정기검진", 180]] : [["심장사상충 예방약", 30], ["외부 구충제", 30], ["종합백신", 365], ["광견병 접종", 365], ["정기검진", 180]];
-    const all = S.pets.length > 1 ? `<section><h2>우리 집 전체 일정</h2><div class="list">${S.pets.flatMap((q) => nextSchedules(q).map((s) => Object.assign({ who: q.name }, s))).sort((a, b) => a.due - b.due).slice(0, 5).map((s) => `<div class="row"><span class="time">${md(s.due)}</span><span class="what">${esc(s.who)} · ${esc(s.name)}</span></div>`).join("") || '<div class="empty">일정이 없어요</div>'}</div></section>` : "";
-    return `<section><h2>${esc(p.name)} 접종·예방 일정</h2><div class="list">${list.length ? list.map((s) => schRow(s, true)).join("") : '<div class="empty">아직 일정이 없어요. 아래에서 추가해 주세요.</div>'}</div></section>
-    <section><h2>일정 추가</h2><form class="form card" id="schform">
+    const all = S.pets.length > 1 ? `<section><h2><span><span class="en">HOME</span>우리 집 전체 일정</span></h2><div class="list">${S.pets.flatMap((q) => nextSchedules(q).map((s) => Object.assign({ who: q.name }, s))).sort((a, b) => a.due - b.due).slice(0, 5).map((s) => `<div class="row"><span class="time">${md(s.due)}</span><span class="what">${esc(s.who)} · ${esc(s.name)}</span><span class="who mono">${ddText(s)}</span></div>`).join("") || '<div class="empty">일정이 없어요</div>'}</div></section>` : "";
+    return `<section><h2><span><span class="en">SCHEDULE</span>${esc(p.name)} 예방·검진</span></h2><div class="list">${list.length ? list.map((s) => schRow(s, true)).join("") : '<div class="empty">아직 일정이 없어요. 아래에서 추가해 주세요.</div>'}</div></section>
+    <section><h2><span><span class="en">ADD</span>일정 추가</span></h2><form class="form card" id="schform">
       <label>이름<input id="s-name" list="s-presets" required maxlength="30" placeholder="예: 심장사상충 예방약"><datalist id="s-presets">${presets.map(([n]) => `<option value="${n}">`).join("")}</datalist></label>
       <div class="two"><label>마지막으로 한 날<input id="s-last" type="date" required value="${iso(now())}"></label><label>며칠마다<input id="s-every" type="number" min="1" max="1095" required value="30" inputmode="numeric"></label></div>
       <div class="r"><button class="btn" type="submit">추가</button></div>
@@ -202,13 +214,15 @@
   }
   function vSummary() {
     const D = summaryData(P()), { p, from, N, rows, notes, sch } = D;
-    return `<section><h2>병원용 한 장 요약</h2>
+    const by = [...new Set(logsOf(p).filter((l) => l.t >= from).map((l) => l.by))].slice(0, 4);
+    return `<section><h2><span><span class="en">SUMMARY</span>병원용 한 장 요약</span></h2>
     <div class="seg" role="group" aria-label="기간">${[1, 3, 6].map((m) => `<button data-period="${m}" aria-pressed="${m === period}" type="button">최근 ${m}개월</button>`).join("")}</div>
     <article class="sheet" id="sheet"><div class="hd"><b>${esc(p.name)} 진료 참고 기록</b><span>${ymd(from)} ~ ${ymd(N)}</span></div>
-      <h3>기본 정보</h3><table>${D.basics.map(([a, b]) => `<tr><td>${a}</td><td>${esc(b)}</td></tr>`).join("")}</table>
-      <h3>기간 중 변화</h3><table>${rows.map(([a, b, f]) => `<tr><td>${esc(a)}</td><td class="num${f ? " flag" : ""}">${esc(b)}</td></tr>`).join("")}</table>
-      <h3>보호자 메모</h3>${notes.length ? `<ul>${notes.map((n) => `<li>${md(n.t)} ${esc(n.text)} (${esc(n.by)})</li>`).join("")}</ul>` : '<div class="note">메모 없음</div>'}
-      <h3>예방·접종</h3><table>${sch.length ? sch.map((s) => `<tr><td>${esc(s.name)}</td><td class="num">${ymd(s.last)}</td></tr>`).join("") : '<tr><td colspan="2">등록된 일정 없음</td></tr>'}</table>
+      <div class="dochead">${photoBox(p, "sm")}<dl class="kv">${D.basics.map(([a, b]) => `<dt>${esc(a.replace("종류 · 정보", "정보").replace("진단받은 질환", "진단").replace("매일 먹는 약", "복용약"))}</dt><dd>${esc(b)}</dd>`).join("")}</dl></div>
+      <h3>기간 중 변화</h3>${rows.map(([a, b, f]) => `<div class="flag${f ? " hi" : ""}"><span>${esc(a)}</span><span>${esc(b)}</span></div>`).join("")}
+      <h3>보호자 메모</h3>${notes.length ? `<ul>${notes.map((n) => `<li>${md(n.t)} ${esc(n.text)} (${esc(n.by)})</li>`).join("")}</ul>` : '<div class="note" style="margin:0">메모 없음</div>'}
+      <h3>예방·접종</h3>${sch.length ? sch.map((s) => `<div class="flag"><span>${esc(s.name)}</span><span class="mono">${ymd(s.last)} (다음 ${ymd(s.due).slice(5)})</span></div>`).join("") : '<div class="note" style="margin:0">등록된 일정 없음</div>'}
+      <div class="sign"><span>기록: ${esc(by.join("·") || S.me)}</span><span>댕냥차트 ${chartNo(p)}</span></div>
       <div class="note">보호자가 앱에 기록한 내용을 정리한 것으로, 진단이 아닙니다.</div></article>
     <div class="lock"><button class="btn" data-act="image" type="button">이미지로 저장·공유</button><button class="btn ghost" data-act="copy" type="button">글자로 복사</button></div>
     <div class="note">빨간 글씨는 숫자가 크게 바뀐 항목이에요. 진료실에서 이 화면을 보여 주거나, 이미지로 저장해 카톡으로 보내세요.</div></section>`;
@@ -219,7 +233,7 @@
     const D = summaryData(P()), { p, from, N, rows, notes, sch, ws } = D;
     try { if (document.fonts && document.fonts.ready) await document.fonts.ready; } catch (_) {}
     const W = 1080, PAD = 64, LW = 300, F = '"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",sans-serif';
-    const C = { bg: "#FFFFFF", ink: "#18272B", muted: "#5B6B6F", rule: "#D5DFDC", accent: "#17715F", crit: "#B33A3A", soft: "#E1F0EC" };
+    const C = { bg: "#FFFFFF", ink: "#173B6C", muted: "#5B7598", rule: "#D9E2EC", accent: "#173B6C", crit: "#C8372D", soft: "#E3EBF4" };
     const cv = document.createElement("canvas"); cv.width = W; cv.height = 6000; const x = cv.getContext("2d");
     x.fillStyle = C.bg; x.fillRect(0, 0, W, cv.height); x.textBaseline = "alphabetic";
     const font = (sz, wt) => (x.font = `${wt || 400} ${sz}px ${F}`);
@@ -231,8 +245,14 @@
         for (const ch of word) { if (x.measureText(line + ch).width > maxW && line) { out.push(line); line = ""; } line += ch; } }
       if (line.trim()) out.push(line.trimEnd()); return out.length ? out : [""]; };
     let y = PAD + 52;
-    font(52, 700); x.fillStyle = C.ink; x.fillText(p.name + " 진료 참고 기록", PAD, y);
-    y += 44; font(28); x.fillStyle = C.muted; x.fillText(ymd(from) + " ~ " + ymd(N) + " · 보호자 기록", PAD, y);
+    font(52, 700); x.fillStyle = C.ink; x.fillText(p.name + " 진료 참고 기록", PAD, y, W - PAD * 2 - (p.photo ? 180 : 0));
+    y += 44; font(28); x.fillStyle = C.muted; x.fillText(ymd(from) + " ~ " + ymd(N) + " · 보호자 기록", PAD, y, W - PAD * 2 - (p.photo ? 180 : 0));
+    if (p.photo) { // 증명사진 (오른쪽 위)
+      const img = new Image(); img.src = p.photo; try { await img.decode(); } catch (_) {}
+      if (img.naturalWidth) { const pw = 150, ph = 188, px = W - PAD - pw, py = PAD - 8, r = Math.max(pw / img.naturalWidth, ph / img.naturalHeight), sw = pw / r, sh = ph / r;
+        x.drawImage(img, (img.naturalWidth - sw) / 2, (img.naturalHeight - sh) / 2, sw, sh, px, py, pw, ph);
+        x.strokeStyle = C.ink; x.lineWidth = 3; x.strokeRect(px, py, pw, ph); y = Math.max(y, py + ph - 4); }
+    }
     y += 26; x.fillStyle = C.ink; x.fillRect(PAD, y, W - PAD * 2, 4); y += 20;
     const section = (t) => { y += 40; font(26, 600); x.fillStyle = C.muted; x.fillText(t, PAD, y); y += 14; };
     const row = (a, b, flag) => {
@@ -277,18 +297,30 @@
   // ---------- 화면: 설정 ----------
   function vSettings() {
     if (editing) return `<section><h2>${editing === "new" ? "아이 추가" : "아이 정보 수정"}</h2>${petForm(editing === "new" ? null : S.pets.find((p) => p.id === editing))}</section>`;
-    return `<section><h2>우리 아이들</h2><div class="list">${S.pets.map((p) => `<div class="row"><span class="mini" style="width:28px;height:28px;border-radius:50%;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent)">${ICON[p.species].replace("<svg", '<svg width="18" height="18"')}</span><span class="what">${esc(p.name)} <small style="color:var(--muted)">${esc(info(p))}</small></span><button class="iconbtn" data-editpet="${p.id}" type="button">수정</button></div>`).join("")}</div>
+    return `<section><h2><span><span class="en">PETS</span>우리 아이들</span></h2><div class="list">${S.pets.map((p) => `<div class="row">${mini(p)}<span class="what">${esc(p.name)} <small style="color:var(--ink2)">${esc(info(p))}</small></span><button class="iconbtn" data-editpet="${p.id}" type="button">수정</button></div>`).join("")}</div>
       <div class="r" style="display:flex;gap:8px;margin-top:10px"><button class="btn" data-act="add-pet" type="button">+ 아이 추가</button></div></section>
-    <section><h2>기록하는 사람</h2><div class="card form"><label>지금 이 휴대폰을 쓰는 사람<select id="me">${S.family.map((f) => `<option ${f === S.me ? "selected" : ""}>${esc(f)}</option>`).join("")}</select></label>
+    <section><h2><span><span class="en">FAMILY</span>기록하는 사람</span></h2><div class="card form"><label>지금 이 휴대폰을 쓰는 사람<select id="me">${S.family.map((f) => `<option ${f === S.me ? "selected" : ""}>${esc(f)}</option>`).join("")}</select></label>
       <form class="addw" id="famform" style="margin:0"><input id="famname" maxlength="10" placeholder="가족 이름 추가 (예: 엄마)" autocomplete="off"><button class="btn" type="submit">추가</button></form>
       <div class="note" style="margin:0">가족이 각자 휴대폰으로 함께 기록하는 기능은 다음 업데이트에서 나와요. 지금은 한 휴대폰에서 누가 눌렀는지만 구분해요.</div></div></section>
-    ${(() => { const p = P(), chip = (key, f) => `<span class="who" style="display:inline-flex;gap:4px;align-items:center;color:var(--ink)">${esc(f)}<button class="del" data-delfood="${key}|${esc(f)}" aria-label="${esc(f)} 빼기" type="button">×</button></span>`;
-      return `<section><h2>${esc(p.name)} 사료·간식 목록</h2><div class="card"><div class="note" style="margin:0 0 6px">사료</div><div style="display:flex;gap:6px;flex-wrap:wrap">${(p.foods || []).map((f) => chip("foods", f)).join("") || '<span class="note" style="margin:0">아직 없어요. 아침밥·저녁밥을 누를 때 입력하면 여기 쌓여요.</span>'}</div>
+    ${(() => { const p = P(), chip = (key, f) => `<span class="who" style="display:inline-flex;gap:4px;align-items:center;color:var(--ink);border:1.5px solid var(--ink);padding:2px 4px 2px 8px">${esc(f)}<button class="del" data-delfood="${key}|${esc(f)}" aria-label="${esc(f)} 빼기" type="button">×</button></span>`;
+      return `<section><h2><span><span class="en">FOOD</span>${esc(p.name)} 사료·간식 목록</span></h2><div class="card"><div class="note" style="margin:0 0 6px">사료</div><div style="display:flex;gap:6px;flex-wrap:wrap">${(p.foods || []).map((f) => chip("foods", f)).join("") || '<span class="note" style="margin:0">아직 없어요. 아침밥·저녁밥을 누를 때 입력하면 여기 쌓여요.</span>'}</div>
       <div class="note" style="margin:12px 0 6px">간식</div><div style="display:flex;gap:6px;flex-wrap:wrap">${(p.snacks || []).map((f) => chip("snacks", f)).join("") || '<span class="note" style="margin:0">아직 없어요. 간식 버튼을 누를 때 입력하면 여기 쌓여요.</span>'}</div></div></section>`; })()}
-    <section><h2>백업</h2><div class="card"><div class="r" style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost" data-act="export" type="button">백업 파일 저장</button><label class="btn ghost" style="display:inline-block">백업 불러오기<input id="importfile" type="file" accept="application/json" hidden></label></div>
+    <section><h2><span><span class="en">BACKUP</span>백업</span></h2><div class="card"><div class="r" style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost" data-act="export" type="button">백업 파일 저장</button><label class="btn ghost" style="display:inline-block">백업 불러오기<input id="importfile" type="file" accept="application/json" hidden></label></div>
       <div class="note">기록은 이 휴대폰 브라우저에만 있어요. 브라우저 기록을 지우면 사라지니 가끔 백업해 두세요.</div></div></section>
-    <section><h2>앱 설치</h2><div class="card note" style="margin:0">아이폰: 사파리 아래 공유 버튼 → "홈 화면에 추가"<br>안드로이드: 크롬 오른쪽 위 ⋮ → "앱 설치" 또는 "홈 화면에 추가"</div></section>
+    <section><h2><span><span class="en">INSTALL</span>앱 설치</span></h2><div class="card note" style="margin:0">아이폰: 사파리 아래 공유 버튼 → "홈 화면에 추가"<br>안드로이드: 크롬 오른쪽 위 ⋮ → "앱 설치" 또는 "홈 화면에 추가"</div></section>
     <section><button class="btn ghost danger" data-act="wipe" type="button">${S.confirmWipe ? "정말 지울까요? 한 번 더 누르면 모두 지워져요" : "모든 기록 지우기"}</button></section>`;
+  }
+
+  // 아이 정보 카드: 진료기록부처럼
+  function idCard(p) {
+    const w = lastWeight(p), nx = nextSchedules(p)[0], N = now();
+    const kv = [["진단", p.dx || "없음"], ["복용약", p.meds || "없음"]];
+    const wrow = w ? `<dt>체중</dt><dd>${w.kg.toFixed(2)}kg ${Math.abs(w.d) >= 0.01 ? `<span class="${w.pct <= -3 ? "dn" : ""}" style="font-size:11.5px">${w.d < 0 ? "▼" : "▲"}${Math.abs(w.d).toFixed(2)}</span>` : ""}</dd>` : "";
+    return `<div class="idcard"><div class="idtop"><span>진료기록부 ${chartNo(p)}</span><span>${ymd(N)} (${wd(N)})</span></div>
+      <div class="idbody">${photoBox(p)}<div><h1 class="name"><b>${esc(p.name)}</b><span>${esc(info(p) || (p.species === "cat" ? "고양이" : "강아지"))}</span></h1>
+      <dl class="kv">${kv.map(([a, b]) => `<dt>${a}</dt><dd>${esc(b)}</dd>`).join("")}${wrow}${p.allergy && p.allergy !== "없음" ? `<dt>알레르기</dt><dd>${esc(p.allergy)}</dd>` : ""}</dl></div></div>
+      ${hasMeds(p) ? '<span class="stamp">투약<br>관리중</span>' : ""}
+      ${nx ? `<div class="alertline${nx.left > 7 ? " calm" : ""}"><i>●</i><span>다음: ${esc(nx.name)}</span><span class="d">${ddText(nx)}</span></div>` : '<div class="alertline calm"><i>●</i><span>일정 탭에서 접종·검진 일정을 넣어 두세요</span></div>'}</div>`;
   }
 
   // ---------- 그리기 ----------
@@ -298,9 +330,9 @@
     $("#banner").innerHTML = S.demo ? `<div class="demo"><span>예시 데이터를 보고 있어요.</span><button data-act="clear-demo" type="button">지우고 내 아이 등록하기</button></div>` : "";
     $("#tabs").hidden = !has;
     if (!has) { $("#pets").innerHTML = ""; $("#pethead").innerHTML = ""; $("#pethead").hidden = true; $("#view").innerHTML = vWelcome(); return; }
-    $("#pets").innerHTML = S.pets.map((p) => `<button data-pet="${p.id}" aria-pressed="${p.id === S.cur && tab !== "settings"}" type="button"><span class="mini">${ICON[p.species]}</span>${esc(p.name)}</button>`).join("") + `<button class="add" data-act="add-pet" type="button">+ 아이 추가</button>`;
+    $("#pets").innerHTML = S.pets.map((p) => `<button data-pet="${p.id}" aria-pressed="${p.id === S.cur && tab !== "settings"}" type="button">${mini(p)}${esc(p.name)}</button>`).join("") + `<button class="add" data-act="add-pet" type="button">+ 아이 추가</button>`;
     const p = P();
-    $("#pethead").innerHTML = tab === "settings" ? "" : `<div class="avatar" aria-hidden="true" style="color:var(--accent)">${ICON[p.species]}</div><div style="min-width:0"><h1>${esc(p.name)} <span style="font-weight:400;font-size:14px;color:var(--muted)">${esc(info(p))}</span></h1><div class="tags">${tags(p).map((t) => `<span class="tag">${esc(t)}</span>`).join("")}</div></div>`;
+    $("#pethead").innerHTML = tab === "settings" ? "" : tab === "today" ? idCard(p) : `<div class="minihead">${mini(p)}<div><b>${esc(p.name)}</b><small>${esc(info(p))}</small></div></div>`;
     $("#pethead").hidden = tab === "settings";
     document.querySelectorAll("nav.tabs button").forEach((b) => b.setAttribute("aria-current", b.dataset.tab === tab ? "page" : "false"));
     $("#view").innerHTML = { today: vToday, weight: vWeight, schedule: vSchedule, summary: vSummary, settings: vSettings }[tab]();
@@ -329,8 +361,8 @@
       if (r() < (d < 28 ? 0.25 : 0.05)) add(nabi.id, "leftover", d, 20, Math.floor(r() * 59)); if (r() < 0.05) add(nabi.id, "vomit", d, 6, Math.floor(r() * 59));
     }
     add(bori.id, "note", 9, 21, 30, { text: "밤에 기침하고 숨이 조금 가빠 보임", by: "엄마" }); add(nabi.id, "note", 6, 22, 0, { text: "물그릇이 평소보다 빨리 비어요", by: "민지" });
-    [3.92, 3.9, 3.86, 3.84, 3.8, 3.78, 3.75, 3.7, 3.66, 3.62, 3.6, 3.56].forEach((kg, i) => S2.weights.push({ id: uid(), pid: bori.id, t: at(177 - i * 15, 9, 0), kg }));
-    [4.62, 4.6, 4.61, 4.57, 4.55, 4.52, 4.38].forEach((kg, i) => S2.weights.push({ id: uid(), pid: nabi.id, t: at(i < 6 ? 170 - i * 33 : 4, 9, 0), kg }));
+    [3.92, 3.9, 3.86, 3.84, 3.8, 3.78, 3.75, 3.7, 3.66, 3.62, 3.6, 3.56].forEach((kg, i) => S2.weights.push({ id: uid(), pid: bori.id, t: at(177 - i * 15, 9, 0), kg, by: fam[i % 3] }));
+    [4.62, 4.6, 4.61, 4.57, 4.55, 4.52, 4.38].forEach((kg, i) => S2.weights.push({ id: uid(), pid: nabi.id, t: at(i < 6 ? 170 - i * 33 : 4, 9, 0), kg, by: fam[(i + 1) % 3] }));
     [["심장사상충 예방약", 24, 30], ["외부 구충제", 24, 30], ["정기검진(심장 초음파)", 170, 180], ["종합백신", 260, 365], ["광견병 접종", 260, 365]].forEach(([name, d, every]) => S2.sch.push({ id: uid(), pid: bori.id, name, last: sod(at(d, 0, 0)), every }));
     [["외부 구충제", 28, 30], ["신장 혈액검사", 85, 90], ["종합백신", 300, 365]].forEach(([name, d, every]) => S2.sch.push({ id: uid(), pid: nabi.id, name, last: sod(at(d, 0, 0)), every }));
     return S2;
@@ -361,12 +393,27 @@
       case "clear-demo": S = blank(); save(); tab = "today"; render(); return;
       case "export": download("댕냥차트-백업-" + iso(now()) + ".json", JSON.stringify(S)); toast("백업 파일을 저장했어요"); return;
       case "wipe": if (!S.confirmWipe) { S.confirmWipe = true; render(); return; } S = blank(); save(); tab = "today"; editing = null; toast("모든 기록을 지웠어요"); render(); return;
+      case "photo": photoPid = d.pid; $("#photofile").value = ""; $("#photofile").click(); return;
+      case "photo-del": { const q = S.pets.find((x) => x.id === d.pid); if (q) { delete q.photo; save(); toast("사진을 뺐어요"); render(); } return; }
       case "image": shareSummaryImage(); return;
-      case "copy": { const txt = $("#sheet").innerText; const sel = () => { const r = document.createRange(); r.selectNodeContents($("#sheet")); const s = getSelection(); s.removeAllRanges(); s.addRange(r); };
+      case "copy": { const ph = document.querySelectorAll("#sheet .photo"); ph.forEach((e) => (e.hidden = true)); const txt = $("#sheet").innerText; ph.forEach((e) => (e.hidden = false)); const sel = () => { const r = document.createRange(); r.selectNodeContents($("#sheet")); const s = getSelection(); s.removeAllRanges(); s.addRange(r); };
         if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(() => toast("복사했어요. 카톡이나 문자에 붙여 넣으세요"), () => { sel(); toast("내용을 선택해 두었어요. 복사를 눌러 주세요"); }); else sel(); return; }
     }
   });
+  // 사진: 가로 360 × 세로 450 으로 잘라 줄여서 이 휴대폰에만 저장
+  let photoPid = null;
+  function readPhoto(file) {
+    return new Promise((res, rej) => { const url = URL.createObjectURL(file), img = new Image();
+      img.onload = () => { const W = 360, H = 450, r = Math.max(W / img.naturalWidth, H / img.naturalHeight), sw = W / r, sh = H / r, c = document.createElement("canvas"); c.width = W; c.height = H;
+        c.getContext("2d").drawImage(img, (img.naturalWidth - sw) / 2, (img.naturalHeight - sh) / 2, sw, sh, 0, 0, W, H); URL.revokeObjectURL(url); res(c.toDataURL("image/jpeg", 0.82)); };
+      img.onerror = () => { URL.revokeObjectURL(url); rej(); }; img.src = url; });
+  }
   document.addEventListener("change", (e) => {
+    if (e.target.id === "photofile" && e.target.files[0]) {
+      const q = S.pets.find((x) => x.id === photoPid) || P();
+      readPhoto(e.target.files[0]).then((u) => { q.photo = u; save(); toast(q.name + " 사진을 넣었어요"); render(); }, () => toast("이 사진은 열 수 없어요. 다른 사진을 골라 주세요"));
+      return;
+    }
     if (e.target.id === "me") { S.me = e.target.value; save(); toast(S.me + "(으)로 기록해요"); }
     if (e.target.id === "importfile" && e.target.files[0]) {
       const fr = new FileReader(); fr.onload = () => { try { const d = JSON.parse(fr.result); if (d.v !== 1 || !Array.isArray(d.pets)) throw 0; S = d; S.demo = false; save(); tab = "today"; toast("백업을 불러왔어요"); render(); } catch (_) { toast("댕냥차트 백업 파일이 아니에요"); } }; fr.readAsText(e.target.files[0]);
@@ -385,7 +432,7 @@
     }
     if (id === "foodform") { const name = v("#foodname"); if (!name || !FOODTYPE[picker]) { toast("이름을 적어 주세요"); return; } const p = P(), key = FOODTYPE[picker]; p[key] = p[key] || []; if (!p[key].includes(name)) p[key].push(name); addLog(picker, { food: name }); return; }
     if (id === "noteform") { const text = v("#notetext"); if (!text) { toast("메모를 적어 주세요"); return; } addLog("note", { text }); return; }
-    if (id === "wform") { const kg = parseFloat(v("#wkg").replace(",", ".")); if (!(kg > 0.1 && kg < 120)) { toast("체중을 kg 숫자로 넣어 주세요 (예: 3.55)"); return; } const p = P(); S.weights.push({ id: uid(), pid: p.id, t: now(), kg }); save(); toast(p.name + " " + kg + "kg 기록했어요"); render(); return; }
+    if (id === "wform") { const kg = parseFloat(v("#wkg").replace(",", ".")); if (!(kg > 0.1 && kg < 120)) { toast("체중을 kg 숫자로 넣어 주세요 (예: 3.55)"); return; } const p = P(); S.weights.push({ id: uid(), pid: p.id, t: now(), kg, by: S.me }); save(); toast(p.name + " " + kg + "kg 기록했어요"); render(); return; }
     if (id === "schform") { const name = v("#s-name"), last = v("#s-last"), every = parseInt(v("#s-every"), 10); if (!name || !last || !(every > 0)) { toast("이름, 날짜, 간격을 모두 넣어 주세요"); return; } S.sch.push({ id: uid(), pid: P().id, name, last: fromIso(last), every }); save(); toast(name + " 일정을 추가했어요"); render(); return; }
     if (id === "famform") { const n = v("#famname"); if (!n || S.family.includes(n)) return; S.family.push(n); save(); toast(n + " 추가했어요"); render(); return; }
   });

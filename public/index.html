@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>댕냥차트</title>
 <meta name="description" content="강아지·고양이 산책, 밥, 약, 체중, 접종을 가족이 함께 기록하고 병원 갈 때 한 장으로 보여 주는 앱">
-<meta name="theme-color" content="#17715F">
+<meta name="theme-color" content="#F6F8FB">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="icon" href="/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/icon-192.png">
@@ -18,10 +18,11 @@
 </head>
 <body>
 <div class="app">
-  <div class="top"><span class="logo">댕냥<span>차트</span></span><button class="iconbtn" data-tab="settings" type="button">설정</button></div>
+  <div class="top"><span class="logo">댕냥차트<small>CHART</small></span><button class="iconbtn" data-tab="settings" type="button">설정</button></div>
   <div id="banner"></div>
   <div class="pets" id="pets" role="group" aria-label="아이 선택"></div>
   <header class="pet" id="pethead"></header>
+  <input type="file" id="photofile" accept="image/*" hidden>
   <main id="view"></main>
 </div>
 <nav class="tabs" id="tabs" aria-label="메뉴"><div class="in">
