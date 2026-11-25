@@ -28,10 +28,17 @@
   // 돌봄 중인 질병: 고르면 기록 칸과 '오늘 챙길 것'이 더해짐 (진단·판단은 하지 않음)
   const CARE = {
     heart: { label: "심장병", btns: [{ k: "cough", label: "기침", type: "sym" }, { k: "tired", label: "숨참·쉽게 지침", type: "sym" }, { k: "faint", label: "쓰러짐·실신", type: "sym" }], check: [["resp", "잠잘 때 호흡수"]] },
-    kidney: { label: "신부전(만성 신장병)", btns: [{ k: "pee", label: "소변", type: "count" }, { k: "leftover", label: "밥 남김", type: "sym" }, { k: "fluid", label: "피하수액", type: "count" }], check: [["waterml", "음수량"]] }
+    kidney: { label: "신부전(만성 신장병)", btns: [{ k: "pee", label: "소변", type: "count" }, { k: "leftover", label: "밥 남김", type: "sym" }, { k: "fluid", label: "피하수액", type: "count" }], check: [["waterml", "음수량"]] },
+    diabetes: { label: "당뇨", btns: [{ k: "insulinAM", label: "아침 인슐린", type: "dose" }, { k: "insulinPM", label: "저녁 인슐린", type: "dose" }, { k: "glucose", label: "혈당", type: "glucose" }, { k: "leftover", label: "밥 남김", type: "sym" }], check: [["insulinAM", "아침 인슐린"], ["insulinPM", "저녁 인슐린"]] },
+    joint: { label: "관절·노령", btns: [{ k: "limp", label: "절뚝거림", type: "sym" }, { k: "stairs", label: "계단·점프 못함", type: "sym" }, { k: "slip", label: "미끄러짐·넘어짐", type: "sym" }, { k: "stiff", label: "일어나기 힘듦", type: "sym" }], check: [] },
+    ccd: { label: "인지장애(치매)", btns: [{ k: "nightcry", label: "밤에 울음·짖음", type: "sym" }, { k: "wander", label: "빙빙 돌기·배회", type: "sym" }, { k: "stuck", label: "구석에 끼임", type: "sym" }, { k: "accident", label: "배변 실수", type: "sym" }, { k: "daynight", label: "낮밤 바뀜", type: "sym" }], check: [] },
+    hospice: { label: "말기·호스피스 돌봄", btns: [{ k: "qol", label: "오늘 상태 점수", type: "qol" }, { k: "pain", label: "아파 보임", type: "sym" }], check: [["qol", "오늘 상태 점수"]] }
   };
-  const guessCare = (dx) => { const c = []; if (/심장|이첨판|심부전|MMVD|HCM|비대성/i.test(dx || "")) c.push("heart"); if (/신장|신부전|콩팥|CKD|신장병/i.test(dx || "")) c.push("kidney"); return c; };
+  // 하루 상태 점수: 6가지를 0~2로 (합계 12점). 보호자 느낌을 기록하는 용도이고 의학 척도가 아님
+  const QOL = [["pain", "아픈 기색 없음"], ["eat", "먹기"], ["drink", "물 마시기"], ["clean", "몸 깨끗함·배변"], ["mood", "기분·반응"], ["move", "움직임"]];
+  const guessCare = (dx) => { const c = []; if (/심장|이첨판|심부전|MMVD|HCM|비대성/i.test(dx || "")) c.push("heart"); if (/신장|신부전|콩팥|CKD|신장병/i.test(dx || "")) c.push("kidney"); if (/당뇨/.test(dx || "")) c.push("diabetes"); if (/관절|슬개골|디스크|고관절/.test(dx || "")) c.push("joint"); if (/치매|인지/.test(dx || "")) c.push("ccd"); if (/호스피스|말기|종양|암\b|림프종/.test(dx || "")) c.push("hospice"); return c; };
   const careOf = (p) => (p.care || []).filter((k) => CARE[k]);
+  const dxText = (p) => [p.dx, careOf(p).filter((k) => !guessCare(p.dx).includes(k)).map((k) => CARE[k].label).join(", ")].filter(Boolean).join(", ") || "없음";
 
   // ---------- 저장 ----------
   const blank = () => ({ v: 1, pets: [], cur: null, me: "나", family: ["나"], logs: [], weights: [], sch: [], resp: [], labs: [], demo: false });
@@ -64,8 +71,11 @@
   const whenOpts = [["0", "지금"], ["30", "30분 전"], ["60", "1시간 전"], ["180", "3시간 전"], ["custom", "직접"]];
   let when = 0;
   const whenT = () => { if (typeof when === "string") { const t = new Date(when).getTime(); return isNaN(t) ? now() : Math.min(t, now()); } return now() - when * 60000; };
+  const valTxt = (l) => (l.food ? " · " + l.food : "") + (l.min ? " " + l.min + "분" : "") + (l.ml ? " " + l.ml + "ml" : "") + (l.u != null ? " " + l.u + "단위" : "") + (l.mg != null ? " " + l.mg + "mg/dL" : "") + (l.score != null ? " " + l.score + "/12점" : "");
+  const btype = (p, k) => (btns(p).find((b) => b.k === k) || {}).type;
+  const PICK = ["walk", "note", "waterml", "dose", "glucose", "qol"];
   const label = (p, k) => (btns(p).find((b) => b.k === k) || { label: k }).label;
-  const hasMeds = (p) => p.meds && p.meds.trim() && p.meds.trim() !== "없음";
+  const hasMeds = (p) => p.meds && p.meds.trim() && p.meds.trim() !== "없음" && !/^\s*인슐린[^,]*$/.test(p.meds);
   const age = (p) => { if (!p.birth) return ""; const b = new Date(fromIso(p.birth)), n = new Date(); let y = n.getFullYear() - b.getFullYear(); if (n.getMonth() < b.getMonth() || (n.getMonth() === b.getMonth() && n.getDate() < b.getDate())) y--; return y < 1 ? "1살 미만" : y + "살"; };
   const info = (p) => [p.breed, age(p), p.sex].filter(Boolean).join(" · ");
   const tags = (p) => [].concat((p.dx || "").split(",").map((s) => s.trim()).filter((s) => s && s !== "없음"), p.allergy && p.allergy !== "없음" ? [p.allergy + " 알레르기"] : []);
@@ -149,7 +159,7 @@
       if (b.type === "ml") { const ml = today.filter((x) => x.k === b.k).reduce((a, x) => a + (x.ml || 0), 0); return ml ? "오늘 " + ml + "ml" : "ml로 기록"; }
       if (!l) { const old = b.type !== "note" && lastAny(b.k); return old && old.t >= N - 7 * DAY ? "마지막 " + ago(old.t) : b.type === "sym" ? "있으면 누르기" : "누르면 기록"; }
       const n = today.filter((x) => x.k === b.k).length;
-      return ago(l.t) + (l.food ? " · " + l.food : l.min ? " · " + l.min + "분" : n > 1 ? " · " + n + "회" : "");
+      const vt = valTxt(l); return ago(l.t) + (vt ? " ·" + vt.replace(/^ · /, " ") : n > 1 ? " · " + n + "회" : "");
     };
     const rToday = respOf(p).filter((r) => r.t >= t0).pop();
     const btn = (b) => { if (b.type === "resp") return `<button class="qb${rToday ? " done" : ""}" data-act="resp" type="button"><b>${b.label}</b><em>${rToday ? ago(rToday.t) + " · " + rToday.bpm + "회/분" : "30초 세기"}</em></button>`; const l = lastOf(b.k); return `<button class="qb${b.type === "sym" ? " sym" : ""}${l && b.type !== "note" ? " done" : ""}" data-log="${b.k}" type="button"><b>${esc(b.label)}</b><em>${esc(sub(b, l))}</em></button>`; };
@@ -167,9 +177,17 @@
         ${picker !== "snack" ? '<button data-food="" type="button" style="border-style:dashed">고르지 않고 기록</button>' : ""}
         <form id="foodform" class="addw" style="width:100%;margin-top:4px"><input id="foodname" maxlength="30" placeholder="${items.length ? "다른 " + what + " 직접 입력" : what + " 이름 (예: " + (picker === "snack" ? "져키" : "로얄캐닌 처방식") + ")"}" autocomplete="off"><button class="btn" type="submit">기록</button></form></div>`;
     }
+    const pt = picker && btype(p, picker);
+    if (pt === "dose") { const lastU = (logsOf(p).filter((l) => (l.k === "insulinAM" || l.k === "insulinPM") && l.u != null).sort((a, b) => b.t - a.t)[0] || {}).u;
+      pk = `<div class="picker" role="group" aria-label="인슐린 용량"><span>${esc(label(p, picker))}: 몇 단위 놓았나요? (수의사 처방대로)</span>${lastU != null ? `<button data-dose="${lastU}" type="button">지난번과 같이 ${lastU}단위</button>` : ""}
+      <form id="doseform" class="addw" style="width:100%;margin-top:4px"><input id="doseval" inputmode="decimal" placeholder="단위 (예: 2)" autocomplete="off"><button class="btn" type="submit">기록</button></form></div>`; }
+    if (pt === "glucose") pk = `<div class="picker" role="group" aria-label="혈당"><span>혈당 측정값 (mg/dL, 측정기 화면 그대로)</span><form id="glucform" class="addw" style="width:100%;margin-top:4px"><input id="glucval" inputmode="numeric" placeholder="예: 180" autocomplete="off"><button class="btn" type="submit">기록</button></form></div>`;
+    if (pt === "qol") pk = `<form class="picker form qolf" id="qolform" style="display:grid"><span>오늘 하루를 떠올리며 골라 주세요. 점수는 보호자의 느낌을 남기는 용도예요.</span>
+      ${QOL.map(([k, n]) => `<div class="qrow" role="radiogroup" aria-label="${n}"><b>${n}</b>${["나쁨", "보통", "좋음"].map((t, i) => `<label><input type="radio" name="q-${k}" value="${i}"> ${t}</label>`).join("")}</div>`).join("")}
+      <div class="r"><button class="btn" type="submit">저장</button><button class="btn ghost" type="button" data-act="close-picker">취소</button></div></form>`;
     if (picker === "note") pk = `<form class="picker form" id="noteform" style="display:grid"><label style="color:var(--ink)">병원에 전할 메모<textarea id="notetext" rows="2" maxlength="200" placeholder="예: 밤에 기침하고 숨이 조금 가빠 보임"></textarea></label><div class="r"><button class="btn" type="submit">저장</button><button class="btn ghost" type="button" data-act="close-picker">취소</button></div></form>`;
     const wh = whenOpts.map(([v, t]) => `<button type="button" data-when="${v}" aria-pressed="${String(when) === v || (v === "custom" && typeof when === "string")}">${t}</button>`).join("");
-    const row = (l) => `<div class="row${(btns(p).find((b) => b.k === l.k) || {}).type === "sym" ? " sym" : ""}"><span class="time">${hm(l.t)}</span><span class="what">${esc(label(p, l.k))}${l.food ? " · " + esc(l.food) : ""}${l.min ? " " + l.min + "분" : ""}${l.ml ? " " + l.ml + "ml" : ""}${l.text ? " · " + esc(l.text) : ""}</span><span class="who">${esc(l.by)}</span><button class="del" data-dellog="${l.id}" aria-label="이 기록 지우기" type="button">×</button></div>`;
+    const row = (l) => `<div class="row${(btns(p).find((b) => b.k === l.k) || {}).type === "sym" ? " sym" : ""}"><span class="time">${hm(l.t)}</span><span class="what">${esc(label(p, l.k))}${esc(valTxt(l))}${l.text ? " · " + esc(l.text) : ""}</span><span class="who">${esc(l.by)}</span><button class="del" data-dellog="${l.id}" aria-label="이 기록 지우기" type="button">×</button></div>`;
     const yday = recent.filter((l) => l.t < t0);
     return `${house}
     <section><h2><span><span class="en">TODAY</span>오늘 기록</span><span class="pill">챙길 것 ${doneN} / ${ck.length}</span></h2>
@@ -204,7 +222,8 @@
   function vWeight() {
     const p = P(), all = S.weights.filter((w) => w.pid === p.id).sort((a, b) => a.t - b.t), ws = all.filter((w) => w.t >= now() - 183 * DAY);
     const form = `<form class="addw" id="wform"><label for="wkg" style="position:absolute;left:-9999px">오늘 체중</label><input id="wkg" inputmode="decimal" placeholder="오늘 체중 kg (예: 3.55)" autocomplete="off"><button class="btn" type="submit">기록</button></form>`;
-    if (!all.length) return `<section><h2><span><span class="en">WEIGHT</span>${esc(p.name)} 체중</span></h2><div class="card"><div class="empty">아직 체중 기록이 없어요. 첫 체중을 넣어 주세요.</div>${form}</div></section>`;
+    const more = vResp(p) + vSeries(p, "glucose", "mg", "GLUCOSE", "혈당", "mg/dL") + vSeries(p, "qol", "score", "QOL", "오늘 상태 점수", "점") + (careOf(p).includes("kidney") || labsOf(p).length ? vLabs(p) : "");
+    if (!all.length) return `<section><h2><span><span class="en">WEIGHT</span>${esc(p.name)} 체중</span></h2><div class="card"><div class="empty">아직 체중 기록이 없어요. 첫 체중을 넣어 주세요.</div>${form}</div></section>${more}`;
     const last = all[all.length - 1], first = ws[0] || last, pct = ((last.kg - first.kg) / first.kg) * 100;
     const rows = all.slice().reverse().slice(0, 12).map((w, i, a) => { const pr = a[i + 1], d = pr ? w.kg - pr.kg : null; return `<tr><td class="n">${ymd(w.t).slice(2)}</td><td class="n">${w.kg.toFixed(2)} kg</td><td class="n ${d == null ? "" : d < 0 ? "dn" : d > 0 ? "up" : ""}">${d == null ? "" : (d > 0 ? "+" : "") + d.toFixed(2)}</td><td>${esc(w.by || "")}</td><td><button class="del" data-delw="${w.id}" aria-label="이 체중 기록 지우기" type="button">×</button></td></tr>`; }).join("");
     return `<section><h2><span><span class="en">WEIGHT</span>${esc(p.name)} 체중</span><span class="pill">최근 6개월</span></h2><div class="card">
@@ -212,7 +231,7 @@
       ${ws.length > 1 ? `<span class="delta${pct <= -5 ? " dn" : ""}">${pct >= 0 ? "+" : ""}${pct.toFixed(1)}% (${md(first.t)} 대비)</span>` : ""}</div>
       ${ws.length > 1 ? `<div class="chart">${weightChart(ws)}</div>` : ""}${form}</div>
       <div class="note">6개월 사이 5% 넘게 줄면 빨간색으로 표시하고 병원용 요약에도 적어요. 원인 판단은 수의사 몫이고, 앱은 숫자만 보여 줘요.</div></section>
-      <section><h2><span><span class="en">RECORD</span>체중 기록</span></h2><div class="list"><table class="tbl"><thead><tr><th>날짜</th><th>체중</th><th>변화</th><th>기록</th><th></th></tr></thead><tbody>${rows}</tbody></table></div></section>${vResp(p)}${careOf(p).includes("kidney") || labsOf(p).length ? vLabs(p) : ""}`;
+      <section><h2><span><span class="en">RECORD</span>체중 기록</span></h2><div class="list"><table class="tbl"><thead><tr><th>날짜</th><th>체중</th><th>변화</th><th>기록</th><th></th></tr></thead><tbody>${rows}</tbody></table></div></section>${more}`;
   }
   function vResp(p) {
     const rs = respOf(p), last = rs[rs.length - 1], rec = rs.filter((r) => r.t >= now() - 90 * DAY);
@@ -226,6 +245,15 @@
       ${rows ? `<section><h2><span><span class="en">RECORD</span>호흡수 기록</span></h2><div class="list"><table class="tbl"><thead><tr><th>날짜</th><th>1분 호흡수</th><th>기록</th><th></th></tr></thead><tbody>${rows}</tbody></table></div></section>` : ""}`;
   }
 
+  // 혈당·상태 점수처럼 날마다 쌓이는 숫자 그래프 (기록이 있을 때만)
+  function vSeries(p, k, f, en, name, unit) {
+    const ls = logsOf(p).filter((l) => l.k === k && l[f] != null && l.t >= now() - 90 * DAY).sort((a, b) => a.t - b.t); if (!ls.length) return "";
+    const last = ls[ls.length - 1];
+    return `<section><h2><span><span class="en">${en}</span>${esc(p.name)} ${name}</span><span class="pill">최근 3개월</span></h2><div class="card">
+      <div class="bignum"><span class="big">${last[f]}<small>${unit} · ${md(last.t)} ${hm(last.t)}</small></span>${ls.length > 1 ? `<span class="delta">평균 ${(ls.reduce((a, l) => a + l[f], 0) / ls.length).toFixed(k === "qol" ? 1 : 0)}${unit}</span>` : ""}</div>
+      ${ls.length > 1 ? `<div class="chart">${weightChart(ls.map((l) => ({ t: l.t, kg: l[f] })), unit)}</div>` : ""}</div>
+      <div class="note">${k === "qol" ? "12점 만점, 보호자가 느낀 하루 상태예요. 의학 척도가 아니에요." : "측정기 숫자를 모은 그래프예요. 목표 범위와 용량 조절은 수의사 선생님께 확인하세요."}</div></section>`;
+  }
   // 혈액검사 수치 (신부전 돌봄). 기준치·판단은 넣지 않고 검사지 숫자만 모음
   const LABK = [["bun", "BUN"], ["cre", "크레아티닌"], ["sdma", "SDMA"], ["phos", "인(P)"]];
   const labsOf = (p) => S.labs.filter((x) => x.pid === p.id).sort((a, b) => a.t - b.t);
@@ -297,11 +325,18 @@
     if (wR) rows.push(["음수량", `최근 2주 하루 평균 ${Math.round(wR.avg)}ml (${wR.n}일 기록)` + (wB ? `, 그 전 ${Math.round(wB.avg)}ml` : ""), !!wB && wR.avg >= wB.avg * 1.3]);
     const rs = S.resp.filter((r) => r.pid === p.id), rRec = rs.filter((r) => r.t >= N - 14 * DAY), rBef = rs.filter((r) => r.t < N - 14 * DAY && r.t >= N - 74 * DAY), avg = (a) => a.reduce((x, r) => x + r.bpm, 0) / a.length;
     if (rRec.length) { const a = avg(rRec), b = rBef.length ? avg(rBef) : 0; rows.push(["잠잘 때 호흡수", `최근 2주 평균 ${Math.round(a)}회/분 (${rRec.length}번 잼, 최고 ${Math.max(...rRec.map((r) => r.bpm))})` + (b ? `, 그 전 평균 ${Math.round(b)}회` : ""), b > 0 && a >= b * 1.2 && a - b >= 4]); }
+    const r2 = (k, f) => { const a = PL.filter((l) => l.k === k && l[f] != null && l.t >= N - 14 * DAY), b = PL.filter((l) => l.k === k && l[f] != null && l.t < N - 14 * DAY && l.t >= N - 74 * DAY), m = (x) => x.reduce((s0, l) => s0 + l[f], 0) / x.length; return { a, b, ma: a.length ? m(a) : 0, mb: b.length ? m(b) : 0 }; };
+    const ins = PL.filter((l) => (l.k === "insulinAM" || l.k === "insulinPM") && l.t >= from);
+    if (ins.length) { const firstLog = Math.max(from, Math.min(...PL.map((l) => l.t))), d = Math.max(1, Math.round((N - firstLog) / DAY)), us = ins.filter((l) => l.u != null).map((l) => l.u); rows.push(["인슐린", `${Math.min(100, Math.round((ins.length / (d * 2)) * 100))}% 기록 (빠진 횟수 약 ${Math.max(0, d * 2 - ins.length)}회)` + (us.length ? `, 용량 ${Math.min(...us)}~${Math.max(...us)}단위` : ""), false]); }
+    const g = r2("glucose", "mg");
+    if (g.a.length) rows.push(["혈당", `최근 2주 평균 ${Math.round(g.ma)}mg/dL (${g.a.length}번, ${Math.min(...g.a.map((l) => l.mg))}~${Math.max(...g.a.map((l) => l.mg))})` + (g.b.length ? `, 그 전 평균 ${Math.round(g.mb)}` : ""), g.b.length > 0 && Math.abs(g.ma - g.mb) >= g.mb * 0.2]);
+    const qs = r2("qol", "score");
+    if (qs.a.length) { const good = qs.a.filter((l) => l.score >= 8).length, hard = qs.a.filter((l) => l.score <= 4).length; rows.push(["오늘 상태 점수", `최근 2주 평균 ${qs.ma.toFixed(1)}/12점 (좋은 날 ${good}일, 힘든 날 ${hard}일)` + (qs.b.length ? `, 그 전 ${qs.mb.toFixed(1)}점` : ""), qs.b.length > 0 && qs.mb - qs.ma >= 2]); }
     const lb = labsOf(p), lL = lb[lb.length - 1], lP = lb[lb.length - 2];
     if (lL) { const up = lP && LABK.some(([k]) => lL[k] != null && lP[k] != null && lP[k] > 0 && lL[k] >= lP[k] * 1.2); rows.push(["혈액검사", `${ymd(lL.t).slice(2)} ${labTxt(lL)}` + (lP ? ` (이전 ${ymd(lP.t).slice(2)} ${labTxt(lP)})` : ""), !!up]); }
     const notes = L.filter((l) => l.k === "note").sort((a, b) => b.t - a.t), sch = nextSchedules(p);
     return { p, from, N, rows, notes, sch, ws,
-      basics: [["종류 · 정보", (p.species === "cat" ? "고양이" : "강아지") + (info(p) ? " · " + info(p) : "")], ["진단받은 질환", [p.dx, careOf(p).filter((k) => !guessCare(p.dx).includes(k)).map((k) => CARE[k].label).join(", ")].filter(Boolean).join(", ") || "없음"], ["알레르기", p.allergy || "없음"], ["매일 먹는 약", p.meds || "없음"]].concat(p.clinic || p.cphone ? [["다니는 병원", [p.clinic, p.cphone].filter(Boolean).join(" ")]] : []) };
+      basics: [["종류 · 정보", (p.species === "cat" ? "고양이" : "강아지") + (info(p) ? " · " + info(p) : "")], ["진단받은 질환", dxText(p)], ["알레르기", p.allergy || "없음"], ["매일 먹는 약", p.meds || "없음"]].concat(p.clinic || p.cphone ? [["다니는 병원", [p.clinic, p.cphone].filter(Boolean).join(" ")]] : []) };
   }
   function vSummary() {
     const D = summaryData(P()), { p, from, N, rows, notes, sch } = D;
@@ -448,7 +483,7 @@
   // 아이 정보 카드: 진료기록부처럼
   function idCard(p) {
     const w = lastWeight(p), nx = nextSchedules(p)[0], N = now();
-    const kv = [["진단", p.dx || "없음"], ["복용약", p.meds || "없음"]], ml = medLeft(p);
+    const kv = [["진단", dxText(p)], ["복용약", p.meds || "없음"]], ml = medLeft(p);
     const mrow = ml ? `<dt>약 남음</dt><dd${ml.days <= 7 ? ' class="dn"' : ""}>${ml.days}일분 (${md(ml.end)}경까지)</dd>` : "";
     const crow = p.clinic || p.cphone ? `<dt>병원</dt><dd>${esc(p.clinic || "")}${p.cphone ? ` <a class="tel" href="${telHref(p.cphone)}">전화</a>` : ""}</dd>` : "";
     const wrow = w ? `<dt>체중</dt><dd>${w.kg.toFixed(2)}kg ${Math.abs(w.d) >= 0.01 ? `<span class="${w.pct <= -3 ? "dn" : ""}" style="font-size:11.5px">${w.d < 0 ? "▼" : "▲"}${Math.abs(w.d).toFixed(2)}</span>` : ""}</dd>` : "";
@@ -486,7 +521,8 @@
     nabi.stock = { count: 40, perDay: 1, at: sod(at(10, 0, 0)) }; nabi.clinic = "우리동네동물병원"; nabi.cphone = "02-000-0000";
     bori.foods = ["로얄캐닌 심장 처방식", "힐스 k/d"]; bori.snacks = ["져키", "덴탈껌", "고구마"];
     nabi.foods = ["신장 처방식 습식", "신장 처방식 건식"]; nabi.snacks = ["츄르"];
-    S2.pets = [bori, nabi]; S2.cur = bori.id;
+    const kong = { id: uid(), name: "콩이", species: "dog", breed: "토이 푸들", birth: iso(at(15 * 365 + 20, 0, 0)), sex: "중성화 암컷", dx: "당뇨, 인지장애", allergy: "", meds: "인슐린 하루 2회", care: ["diabetes", "ccd"], foods: ["당뇨 처방식"], snacks: [] };
+    S2.pets = [bori, nabi, kong]; S2.cur = bori.id;
     const add = (pid, k, d, h, m, extra) => { const t = at(d, h, m); if (t <= now()) S2.logs.push(Object.assign({ id: uid(), pid, k, t, by: fam[Math.floor(r() * 3)] }, extra || {})); };
     for (let d = 180; d >= 0; d--) {
       add(bori.id, "breakfast", d, 8, Math.floor(r() * 30), { food: d < 40 ? "로얄캐닌 심장 처방식" : "힐스 k/d" }); if (r() < 0.6) add(bori.id, "snack", d, 15, Math.floor(r() * 59), { food: ["져키", "덴탈껌", "고구마"][Math.floor(r() * 3)] }); if (r() > 0.04) add(bori.id, "medAM", d, 8, 10 + Math.floor(r() * 30));
@@ -505,6 +541,12 @@
     [["외부 구충제", 28, 30], ["신장 혈액검사", 85, 90], ["종합백신", 300, 365]].forEach(([name, d, every]) => S2.sch.push({ id: uid(), pid: nabi.id, name, last: sod(at(d, 0, 0)), every }));
     bori.custom = [{ k: "c_teeth", label: "양치", type: "count" }]; bori.care = ["heart"]; nabi.care = ["kidney"];
     for (let d = 90; d >= 0; d--) { if (r() < (d < 14 ? 0.3 : 0.05)) add(bori.id, "tired", d, 17, Math.floor(r() * 59)); if (d <= 45 && d % 2 === 0) add(nabi.id, "fluid", d, 21, Math.floor(r() * 30)); }
+    for (let d = 90; d >= 0; d--) {
+      add(kong.id, "breakfast", d, 7, Math.floor(r() * 20), { food: "당뇨 처방식" }); add(kong.id, "insulinAM", d, 7, 25 + Math.floor(r() * 10), { u: d < 30 ? 4 : 3.5 });
+      if (r() > 0.05) add(kong.id, "dinner", d, 19, Math.floor(r() * 20), { food: "당뇨 처방식" }); if (r() > 0.06) add(kong.id, "insulinPM", d, 19, 25 + Math.floor(r() * 10), { u: d < 30 ? 4 : 3.5 });
+      if (d % 3 === 0) add(kong.id, "glucose", d, 13, 0, { mg: 160 + Math.floor(r() * 120) - (d < 30 ? 40 : 0) });
+      if (r() < (d < 21 ? 0.4 : 0.15)) add(kong.id, "nightcry", d, 2, Math.floor(r() * 59)); if (r() < 0.2) add(kong.id, "wander", d, 22, Math.floor(r() * 59)); if (r() < 0.1) add(kong.id, "accident", d, 11, Math.floor(r() * 59));
+    }
     [[170, 28, 1.8, 13, 4.1], [85, 31, 2.0, 15, 4.4], [6, 36, 2.3, 18, 4.9]].forEach(([d, bun, cre, sdma, phos], i) => S2.labs.push({ id: uid(), pid: nabi.id, t: sod(at(d, 0, 0)), bun, cre, sdma, phos, by: fam[i % 3] }));
     for (let d = 60; d >= 0; d--) { if (r() < 0.7) add(bori.id, "c_teeth", d, 21, Math.floor(r() * 59)); add(nabi.id, "waterml", d, 9, 0, { ml: (d < 14 ? 160 : 110) + 10 * Math.floor(r() * 4) }); }
     for (let d = 88; d >= 0; d -= 3) { const t = at(d, 23, 10); if (t <= now()) S2.resp.push({ id: uid(), pid: bori.id, t, bpm: (d < 14 ? 28 : 22) + 2 * Math.floor(r() * 3), by: fam[Math.floor(r() * 3)] }); }
@@ -518,7 +560,8 @@
     if (d.act !== "wipe" && S.confirmWipe) { S.confirmWipe = false; }
     if (d.tab) { tab = d.tab; picker = null; editing = null; render(); scrollTo(0, 0); return; }
     if (d.pet) { S.cur = d.pet; if (tab === "settings") tab = "today"; picker = null; save(); render(); return; }
-    if (d.log) { if (d.log === "walk" || d.log === "note" || d.log === "waterml" || FOODTYPE[d.log]) { picker = picker === d.log ? null : d.log; render(); if (picker === "note") { const t = $("#notetext"); t && t.focus(); } return; } addLog(d.log); return; }
+    if (d.log) { if (d.log === "walk" || d.log === "note" || d.log === "waterml" || FOODTYPE[d.log] || PICK.includes(btype(P(), d.log))) { picker = picker === d.log ? null : d.log; render(); if (picker === "note") { const t = $("#notetext"); t && t.focus(); } return; } addLog(d.log); return; }
+    if (d.dose !== undefined && picker) { addLog(picker, { u: +d.dose }); return; }
     if (d.walk) { addLog("walk", { min: +d.walk }); return; }
     if (d.ml) { addLog("waterml", { ml: +d.ml }); return; }
     if (d.when) { when = d.when === "custom" ? dtl(now() - 3600000) : +d.when; render(); return; }
@@ -588,6 +631,9 @@
       editing = null; tab = "today"; save(); toast(name + (ex ? " 정보를 저장했어요" : " 등록했어요")); render(); scrollTo(0, 0); return;
     }
     if (id === "foodform") { const name = v("#foodname"); if (!name || !FOODTYPE[picker]) { toast("이름을 적어 주세요"); return; } const p = P(), key = FOODTYPE[picker]; p[key] = p[key] || []; if (!p[key].includes(name)) p[key].push(name); addLog(picker, { food: name }); return; }
+    if (id === "doseform") { const n = parseFloat(v("#doseval").replace(",", ".")); if (!(n > 0 && n < 200)) { toast("단위를 숫자로 넣어 주세요"); return; } addLog(picker, { u: n }); return; }
+    if (id === "glucform") { const n = parseInt(v("#glucval"), 10); if (!(n >= 10 && n <= 1000)) { toast("혈당을 숫자로 넣어 주세요"); return; } addLog("glucose", { mg: n }); return; }
+    if (id === "qolform") { const q = {}; for (const [k] of QOL) { const r = document.querySelector(`input[name=q-${k}]:checked`); if (!r) { toast("여섯 가지를 모두 골라 주세요"); return; } q[k] = +r.value; } addLog("qol", { q, score: Object.values(q).reduce((a, b) => a + b, 0) }); return; }
     if (id === "noteform") { const text = v("#notetext"); if (!text) { toast("메모를 적어 주세요"); return; } addLog("note", { text }); return; }
     if (id === "wform") { const kg = parseFloat(v("#wkg").replace(",", ".")); if (!(kg > 0.1 && kg < 120)) { toast("체중을 kg 숫자로 넣어 주세요 (예: 3.55)"); return; } const p = P(); S.weights.push({ id: uid(), pid: p.id, t: now(), kg, by: S.me }); save(); toast(p.name + " " + kg + "kg 기록했어요"); render(); return; }
     if (id === "schform") { const name = v("#s-name"), last = v("#s-last"), every = parseInt(v("#s-every"), 10); if (!name || !last || !(every > 0)) { toast("이름, 날짜, 간격을 모두 넣어 주세요"); return; } S.sch.push({ id: uid(), pid: P().id, name, last: fromIso(last), every }); save(); toast(name + " 일정을 추가했어요"); render(); return; }

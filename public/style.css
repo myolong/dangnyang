@@ -245,3 +245,7 @@ details.yday summary{font-size:12.5px;color:var(--ink2);cursor:pointer;padding:4
 .form fieldset.care legend{font-size:12.5px;color:var(--ink2);font-weight:600;padding:0 4px}
 .form fieldset.care label{display:flex;gap:6px;align-items:center;color:var(--ink);font-size:14.5px;font-weight:500}
 .form input[type=checkbox]{width:auto;padding:0;accent-color:var(--ink)}
+/* 하루 상태 점수 */
+.qolf .qrow{display:grid;grid-template-columns:1fr repeat(3,auto);gap:4px 10px;align-items:center;padding:6px 0;border-top:1px dashed var(--line)}
+.qolf .qrow b{font-size:13.5px;color:var(--ink);font-weight:600}
+.qolf .qrow label{display:flex;gap:4px;align-items:center;font-size:13px;color:var(--ink);font-weight:500}
