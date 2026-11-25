@@ -114,7 +114,7 @@
   }
 
   // ---------- 상태 ----------
-  let tab = "today", picker = null, period = 3, editing = null, doneSch = null;
+  let tab = "today", picker = null, period = 3, editing = null, doneSch = null, seg = "base", fixId = null;
 
   // ---------- 화면: 처음 ----------
   function petForm(p) {
@@ -186,15 +186,29 @@
       ${QOL.map(([k, n]) => `<div class="qrow" role="radiogroup" aria-label="${n}"><b>${n}</b>${["나쁨", "보통", "좋음"].map((t, i) => `<label><input type="radio" name="q-${k}" value="${i}"> ${t}</label>`).join("")}</div>`).join("")}
       <div class="r"><button class="btn" type="submit">저장</button><button class="btn ghost" type="button" data-act="close-picker">취소</button></div></form>`;
     if (picker === "note") pk = `<form class="picker form" id="noteform" style="display:grid"><label style="color:var(--ink)">병원에 전할 메모<textarea id="notetext" rows="2" maxlength="200" placeholder="예: 밤에 기침하고 숨이 조금 가빠 보임"></textarea></label><div class="r"><button class="btn" type="submit">저장</button><button class="btn ghost" type="button" data-act="close-picker">취소</button></div></form>`;
-    const wh = whenOpts.map(([v, t]) => `<button type="button" data-when="${v}" aria-pressed="${String(when) === v || (v === "custom" && typeof when === "string")}">${t}</button>`).join("");
+    // 질병별 칸: 고른 질병이 있으면 '기본 · 질병들 · 그 밖에'로 나눠 보여 줌
+    const all = btns(p), cares = careOf(p), segs = [];
+    if (cares.length) {
+      const used = new Set();
+      const careSeg = cares.map((ck) => { const keys = CARE[ck].btns.map((b) => b.k).concat(CARE[ck].check.map((c) => c[0])); const list = all.filter((b) => keys.includes(b.k) && !used.has(b.k)); list.forEach((b) => used.add(b.k)); return { id: ck, name: CARE[ck].label.replace(/\(.*\)/, ""), list }; });
+      const base = all.filter((b) => !used.has(b.k) && b.type !== "sym" && b.type !== "resp" && !b.k.startsWith("c_"));
+      base.forEach((b) => used.add(b.k));
+      segs.push({ id: "base", name: "기본", list: base }, ...careSeg, { id: "etc", name: "그 밖에", list: all.filter((b) => !used.has(b.k)), add: true });
+    }
+    if (segs.length && !segs.some((g) => g.id === seg)) seg = "base";
+    const pendSeg = (g) => g.list.some((b) => ck.some(([k]) => k === b.k) && !doneToday(p, b.k));
+    const segBar = segs.length ? `<div class="cseg" role="group" aria-label="기록 칸 고르기">${segs.map((g) => `<button type="button" data-seg="${g.id}" class="c-${g.id}" aria-pressed="${g.id === seg}">${esc(g.name)}${pendSeg(g) ? '<i aria-label="아직 챙길 것 있음"></i>' : ""}</button>`).join("")}</div>` : "";
+    const cur = segs.length ? segs.find((g) => g.id === seg) : { list: all, add: true };
+    const addBtn = '<button class="qb addc" data-act="custom-add" type="button"><b>+ 칸 추가</b><em>목욕·양치 등</em></button>';
+    const fl = fixId && S.logs.find((l) => l.id === fixId);
+    const fixbar = fl && now() - (fl.made || fl.t) < 15 * 60000 ? `<div class="fixbar" role="group" aria-label="기록 시각 고치기"><b>${esc(label(p, fl.k))} ${hm(fl.t)}에 기록했어요. 시각이 다르면 고쳐 주세요.</b>${[[30, "30분 전"], [60, "1시간 전"], [180, "3시간 전"]].map(([m, t]) => `<button type="button" data-fix="${m}">${t}</button>`).join("")}<input id="fixat" type="datetime-local" aria-label="직접 고르기" value="${dtl(fl.t)}" max="${dtl(N)}" min="${dtl(N - 7 * DAY)}"><button class="x" type="button" data-fix="close" aria-label="닫기">×</button></div>` : "";
     const row = (l) => `<div class="row${(btns(p).find((b) => b.k === l.k) || {}).type === "sym" ? " sym" : ""}"><span class="time">${hm(l.t)}</span><span class="what">${esc(label(p, l.k))}${esc(valTxt(l))}${l.text ? " · " + esc(l.text) : ""}</span><span class="who">${esc(l.by)}</span><button class="del" data-dellog="${l.id}" aria-label="이 기록 지우기" type="button">×</button></div>`;
     const yday = recent.filter((l) => l.t < t0);
     return `${house}
     <section><h2><span><span class="en">TODAY</span>오늘 기록</span><span class="pill">챙길 것 ${doneN} / ${ck.length}</span></h2>
     <div class="prog" style="grid-template-columns:repeat(${ck.length},1fr)" aria-hidden="true">${ck.map(([k]) => `<i class="${doneToday(p, k) ? "f" : ""}"></i>`).join("")}</div>
-    <div class="when${when ? " on" : ""}" role="group" aria-label="기록 시각"><span>기록 시각</span>${wh}</div>
-    ${typeof when === "string" ? `<div class="whenpick"><label for="whenat">언제 했나요?</label><input id="whenat" type="datetime-local" value="${when}" max="${dtl(N)}" min="${dtl(N - 7 * DAY)}"></div>` : ""}
-    <div class="grid">${btns(p).map(btn).join("")}<button class="qb addc" data-act="custom-add" type="button"><b>+ 칸 추가</b><em>목욕·양치·인슐린 등</em></button></div>${pk}</section>
+    ${fixbar}${segBar}
+    <div class="grid">${cur.list.map(btn).join("")}${cur.add ? addBtn : ""}</div>${pk}</section>
     <section><h2><span><span class="en">LOG</span>오늘 기록한 것</span><span class="pill">${today.length}건</span></h2>
     <div class="list">${today.length ? today.map(row).join("") : '<div class="empty">아직 기록이 없어요. 위 칸을 눌러 보세요.</div>'}</div>
     ${yday.length ? `<details class="yday"><summary>어제 기록 ${yday.length}건 보기</summary><div class="list">${yday.map(row).join("")}</div></details>` : ""}</section>`;
@@ -213,11 +227,11 @@
     // 최근 4주 사이 줄었으면 그 구간을 붉게
     const rec = ws.filter((w) => w.t >= last.t - 28 * DAY), drop = rec.length > 1 && (rec[rec.length - 1].kg - rec[0].kg) / rec[0].kg <= -0.02;
     return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="체중 변화 그래프">
-      ${ticks.map((v) => `<line x1="${pd.l}" x2="${W - pd.r}" y1="${Y(v)}" y2="${Y(v)}" stroke="#D9E2EC"/><text x="${pd.l - 6}" y="${Y(v) + 4}" text-anchor="end" font-size="10" fill="#5B7598" font-family="IBM Plex Mono,monospace">${unit ? Math.round(v) : v.toFixed(1)}</text>`).join("")}
-      ${drop && !unit ? `<rect x="${X(rec[0].t)}" y="${pd.t}" width="${Math.max(4, X(last.t) - X(rec[0].t))}" height="${H - pd.t - pd.b}" fill="#C8372D" fill-opacity=".08"/><text x="${X(last.t)}" y="${pd.t - 5}" text-anchor="end" font-size="10" fill="#C8372D">최근 4주 줄어듦</text>` : ""}
-      <polyline points="${pts}" fill="none" stroke="#173B6C" stroke-width="2" stroke-linejoin="round"/>
-      ${ws.map((w, i) => { const e = i === ws.length - 1, c = e ? "#C8372D" : "#173B6C"; return `<rect x="${X(w.t) - 3}" y="${Y(w.kg) - 3}" width="6" height="6" fill="${e ? c : "#fff"}" stroke="${c}" stroke-width="1.5"/>`; }).join("")}
-      <text x="${X(first.t)}" y="${H - 8}" font-size="10" fill="#5B7598" font-family="IBM Plex Mono,monospace">${md(first.t)}</text><text x="${X(last.t)}" y="${H - 8}" text-anchor="end" font-size="10" fill="#5B7598" font-family="IBM Plex Mono,monospace">${md(last.t)}</text></svg>`;
+      ${ticks.map((v) => `<line x1="${pd.l}" x2="${W - pd.r}" y1="${Y(v)}" y2="${Y(v)}" stroke="#E1E9E7"/><text x="${pd.l - 6}" y="${Y(v) + 4}" text-anchor="end" font-size="10" fill="#6A807B" font-family="Noto Sans KR,sans-serif">${unit ? Math.round(v) : v.toFixed(1)}</text>`).join("")}
+      ${drop && !unit ? `<rect x="${X(rec[0].t)}" y="${pd.t}" width="${Math.max(4, X(last.t) - X(rec[0].t))}" height="${H - pd.t - pd.b}" fill="#B4432F" fill-opacity=".08"/><text x="${X(last.t)}" y="${pd.t - 5}" text-anchor="end" font-size="10" fill="#B4432F">최근 4주 줄어듦</text>` : ""}
+      <polyline points="${pts}" fill="none" stroke="#0F5C55" stroke-width="2" stroke-linejoin="round"/>
+      ${ws.map((w, i) => { const e = i === ws.length - 1, c = e ? "#B4432F" : "#0F5C55"; return `<rect x="${X(w.t) - 3}" y="${Y(w.kg) - 3}" width="6" height="6" fill="${e ? c : "#fff"}" stroke="${c}" stroke-width="1.5"/>`; }).join("")}
+      <text x="${X(first.t)}" y="${H - 8}" font-size="10" fill="#6A807B" font-family="Noto Sans KR,sans-serif">${md(first.t)}</text><text x="${X(last.t)}" y="${H - 8}" text-anchor="end" font-size="10" fill="#6A807B" font-family="Noto Sans KR,sans-serif">${md(last.t)}</text></svg>`;
   }
   function vWeight() {
     const p = P(), all = S.weights.filter((w) => w.pid === p.id).sort((a, b) => a.t - b.t), ws = all.filter((w) => w.t >= now() - 183 * DAY);
@@ -358,8 +372,8 @@
   async function summaryImage() {
     const D = summaryData(P()), { p, from, N, rows, notes, sch, ws } = D;
     try { if (document.fonts && document.fonts.ready) await document.fonts.ready; } catch (_) {}
-    const W = 1080, PAD = 64, LW = 300, F = '"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",sans-serif';
-    const C = { bg: "#FFFFFF", ink: "#173B6C", muted: "#5B7598", rule: "#D9E2EC", accent: "#173B6C", crit: "#C8372D", soft: "#E3EBF4" };
+    const W = 1080, PAD = 64, LW = 300, F = '"Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",sans-serif';
+    const C = { bg: "#FFFFFF", ink: "#0F5C55", muted: "#6A807B", rule: "#E1E9E7", accent: "#0F5C55", crit: "#B4432F", soft: "#E7F3F0" };
     const cv = document.createElement("canvas"); cv.width = W; cv.height = 6000; const x = cv.getContext("2d");
     x.fillStyle = C.bg; x.fillRect(0, 0, W, cv.height); x.textBaseline = "alphabetic";
     const font = (sz, wt) => (x.font = `${wt || 400} ${sz}px ${F}`);
@@ -488,7 +502,7 @@
     const crow = p.clinic || p.cphone ? `<dt>병원</dt><dd>${esc(p.clinic || "")}${p.cphone ? ` <a class="tel" href="${telHref(p.cphone)}">전화</a>` : ""}</dd>` : "";
     const wrow = w ? `<dt>체중</dt><dd>${w.kg.toFixed(2)}kg ${Math.abs(w.d) >= 0.01 ? `<span class="${w.pct <= -3 ? "dn" : ""}" style="font-size:11.5px">${w.d < 0 ? "▼" : "▲"}${Math.abs(w.d).toFixed(2)}</span>` : ""}</dd>` : "";
     return `<div class="idcard"><div class="idtop"><span>진료기록부 ${chartNo(p)}</span><span>${ymd(N)} (${wd(N)})</span></div>
-      <div class="idbody">${photoBox(p)}<div><h1 class="name"><b>${esc(p.name)}</b><span>${esc(info(p) || (p.species === "cat" ? "고양이" : "강아지"))}</span></h1>
+      <div class="idbody">${photoBox(p)}<div><h1 class="name"><b>${esc(p.name)}</b><span>${esc(info(p) || (p.species === "cat" ? "고양이" : "강아지"))}</span></h1>${careOf(p).length ? `<div>${careOf(p).map((k) => `<span class="ctag c-${k}">${esc(CARE[k].label.replace(/\(.*\)/, ""))}</span>`).join("")}</div>` : ""}
       <dl class="kv">${kv.map(([a, b]) => `<dt>${a}</dt><dd>${esc(b)}</dd>`).join("")}${mrow}${wrow}${p.allergy && p.allergy !== "없음" ? `<dt>알레르기</dt><dd>${esc(p.allergy)}</dd>` : ""}${crow}</dl></div></div>
       ${hasMeds(p) ? '<span class="stamp">투약<br>관리중</span>' : ""}
       ${nx ? `<div class="alertline${nx.left > 7 ? " calm" : ""}"><i>●</i><span>다음: ${esc(nx.name)}</span><span class="d">${ddText(nx)}</span></div>` : '<div class="alertline calm"><i>●</i><span>일정 탭에서 접종·검진 일정을 넣어 두세요</span></div>'}</div>`;
@@ -510,7 +524,7 @@
   }
 
   // ---------- 동작 ----------
-  function addLog(k, extra) { const p = P(), t = whenT(), past = now() - t > 60000; S.logs.push(Object.assign({ id: uid(), pid: p.id, k, t, by: S.me }, extra || {})); save(); toast(p.name + " " + label(p, k) + (extra && extra.food ? "(" + extra.food + ")" : "") + (extra && extra.ml ? " " + extra.ml + "ml" : "") + (past ? " · " + (sod(t) < sod(now()) ? md(t) + " " : "") + hm(t) + "으로" : "") + " 기록했어요"); picker = null; when = 0; render(); }
+  function addLog(k, extra) { const p = P(), t = whenT(), past = now() - t > 60000; const id = uid(); S.logs.push(Object.assign({ id, pid: p.id, k, t, made: now(), by: S.me }, extra || {})); fixId = id; save(); toast(p.name + " " + label(p, k) + (extra && extra.food ? "(" + extra.food + ")" : "") + (extra && extra.ml ? " " + extra.ml + "ml" : "") + (past ? " · " + (sod(t) < sod(now()) ? md(t) + " " : "") + hm(t) + "으로" : "") + " 기록했어요"); picker = null; when = 0; render(); }
   function demo() {
     const r = ((s) => () => ((s = (s * 1664525 + 1013904223) % 4294967296) / 4294967296))(42);
     const at = (d, h, m) => { const x = new Date(); x.setDate(x.getDate() - d); x.setHours(h, m, 0, 0); return x.getTime(); };
@@ -545,7 +559,7 @@
       add(kong.id, "breakfast", d, 7, Math.floor(r() * 20), { food: "당뇨 처방식" }); add(kong.id, "insulinAM", d, 7, 25 + Math.floor(r() * 10), { u: d < 30 ? 4 : 3.5 });
       if (r() > 0.05) add(kong.id, "dinner", d, 19, Math.floor(r() * 20), { food: "당뇨 처방식" }); if (r() > 0.06) add(kong.id, "insulinPM", d, 19, 25 + Math.floor(r() * 10), { u: d < 30 ? 4 : 3.5 });
       if (d % 3 === 0) add(kong.id, "glucose", d, 13, 0, { mg: 160 + Math.floor(r() * 120) - (d < 30 ? 40 : 0) });
-      if (r() < (d < 21 ? 0.4 : 0.15)) add(kong.id, "nightcry", d, 2, Math.floor(r() * 59)); if (r() < 0.2) add(kong.id, "wander", d, 22, Math.floor(r() * 59)); if (r() < 0.1) add(kong.id, "accident", d, 11, Math.floor(r() * 59));
+      if (r() < (d < 21 ? 0.4 : 0.15)) add(kong.id, "nightcry", d, 2, Math.floor(r() * 59)); if (r() < 0.2) add(kong.id, "wander", d, 22, Math.floor(r() * 59)); add(kong.id, "poop", d, 9 + Math.floor(r() * 6), Math.floor(r() * 59)); if (r() < 0.1) add(kong.id, "accident", d, 11, Math.floor(r() * 59));
     }
     [[170, 28, 1.8, 13, 4.1], [85, 31, 2.0, 15, 4.4], [6, 36, 2.3, 18, 4.9]].forEach(([d, bun, cre, sdma, phos], i) => S2.labs.push({ id: uid(), pid: nabi.id, t: sod(at(d, 0, 0)), bun, cre, sdma, phos, by: fam[i % 3] }));
     for (let d = 60; d >= 0; d--) { if (r() < 0.7) add(bori.id, "c_teeth", d, 21, Math.floor(r() * 59)); add(nabi.id, "waterml", d, 9, 0, { ml: (d < 14 ? 160 : 110) + 10 * Math.floor(r() * 4) }); }
@@ -559,11 +573,13 @@
     const d = b.dataset;
     if (d.act !== "wipe" && S.confirmWipe) { S.confirmWipe = false; }
     if (d.tab) { tab = d.tab; picker = null; editing = null; render(); scrollTo(0, 0); return; }
-    if (d.pet) { S.cur = d.pet; if (tab === "settings") tab = "today"; picker = null; save(); render(); return; }
+    if (d.pet) { S.cur = d.pet; if (tab === "settings") tab = "today"; picker = null; seg = "base"; fixId = null; save(); render(); return; }
     if (d.log) { if (d.log === "walk" || d.log === "note" || d.log === "waterml" || FOODTYPE[d.log] || PICK.includes(btype(P(), d.log))) { picker = picker === d.log ? null : d.log; render(); if (picker === "note") { const t = $("#notetext"); t && t.focus(); } return; } addLog(d.log); return; }
     if (d.dose !== undefined && picker) { addLog(picker, { u: +d.dose }); return; }
     if (d.walk) { addLog("walk", { min: +d.walk }); return; }
     if (d.ml) { addLog("waterml", { ml: +d.ml }); return; }
+    if (d.seg) { seg = d.seg; picker = null; render(); return; }
+    if (d.fix) { const l = S.logs.find((x) => x.id === fixId); if (d.fix === "close" || !l) { fixId = null; render(); return; } l.t = (l.made || now()) - +d.fix * 60000; save(); toast(label(P(), l.k) + " " + hm(l.t) + "으로 고쳤어요"); render(); return; }
     if (d.when) { when = d.when === "custom" ? dtl(now() - 3600000) : +d.when; render(); return; }
     if (d.allmeal) { const t = whenT(); S.pets.forEach((q) => { const f = itemsFor(q, d.allmeal)[0]; S.logs.push(Object.assign({ id: uid(), pid: q.id, k: d.allmeal, t, by: S.me }, f ? { food: f } : {})); }); save(); toast("모두 " + (d.allmeal === "breakfast" ? "아침밥" : "저녁밥") + " 기록했어요 (최근 준 사료로)"); when = 0; render(); return; }
     if (d.delcustom) { const p = P(); p.custom = (p.custom || []).filter((x) => x.k !== d.delcustom); save(); toast("기록 칸을 뺐어요 (지난 기록은 남아 있어요)"); render(); return; }
@@ -611,6 +627,7 @@
       readPhoto(e.target.files[0]).then((u) => { q.photo = u; save(); toast(q.name + " 사진을 넣었어요"); render(); }, () => toast("이 사진은 열 수 없어요. 다른 사진을 골라 주세요"));
       return;
     }
+    if (e.target.id === "fixat") { const l = S.logs.find((x) => x.id === fixId), t = new Date(e.target.value).getTime(); if (l && !isNaN(t)) { l.t = Math.min(t, now()); save(); toast(label(P(), l.k) + " " + (sod(l.t) < sod(now()) ? md(l.t) + " " : "") + hm(l.t) + "으로 고쳤어요"); render(); } return; }
     if (e.target.id === "whenat") { when = e.target.value || 0; render(); return; }
     if (e.target.id === "me") { S.me = e.target.value; save(); toast(S.me + "(으)로 기록해요"); }
     if (e.target.id === "importfile" && e.target.files[0]) {

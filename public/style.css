@@ -1,14 +1,14 @@
-/* A안 '진료 차트': 모눈 종이 위 남색 잉크, 빨간 확인 도장, 각진 칸. 한 가지 밝은 모습으로 고정 */
+/* 오래곁에 시안 1: 흰 바탕 + 짙은 청록 하나, 둥근 카드, 질병별 칸. 한 가지 밝은 모습으로 고정 */
 :root{
-  --paper:#F6F8FB; --grid:#D9E2EC; --surface:#FFFFFF; --ink:#173B6C; --ink2:#5B7598; --soft:#E3EBF4; --line:#C9D6E5;
-  --red:#C8372D; --red-soft:#FBE9E7; --ok:#1F7A55; --ok-soft:#E3F2EA; --warn:#A8620A;
-  --f-body:"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
-  --f-num:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  --paper:#F7F9F8; --grid:#EDF2F1; --surface:#FFFFFF; --ink:#15302C; --ink2:#6A807B; --soft:#E7F3F0; --line:#E1E9E7;
+  --acc:#0F5C55; --acc2:#3B827A; --red:#B4432F; --red-soft:#FBECE8; --ok:#0F5C55; --ok-soft:#E7F3F0; --warn:#9A5B00;
+  --r:14px;
+  --f-body:"Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+  --f-num:"Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
   color-scheme:light;
 }
 *{box-sizing:border-box}
-body{background-color:var(--paper);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.5;
-  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);background-size:100% 24px,24px 100%;background-attachment:fixed}
+body{background-color:var(--paper);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.5;font-variant-numeric:tabular-nums}
 body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--paper)}
 .app{max-width:480px;margin:0 auto;padding-left:max(14px,env(safe-area-inset-left,0px));padding-right:max(14px,env(safe-area-inset-right,0px));padding-block:0 calc(88px + env(safe-area-inset-bottom,0px))}
 button{font:inherit;color:inherit;cursor:pointer}
@@ -18,15 +18,15 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 /* 상단 */
 .top{display:flex;align-items:center;justify-content:space-between;padding-block:14px 4px}
 .logo{font-weight:700;font-size:19px;letter-spacing:-.02em;color:var(--ink)}
-.logo small{font:600 10px var(--f-num);border:1.5px solid var(--ink);padding:1px 5px;margin-left:6px;vertical-align:3px;letter-spacing:.04em}
-.iconbtn{font-size:12px;font-family:var(--f-num);border:1.5px solid var(--ink);background:var(--surface);color:var(--ink);padding:4px 10px}
-.demo{margin-top:10px;padding:8px 10px;border:1.5px dashed var(--ink);background:var(--surface);font-size:13px;display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap}
-.demo button{font-size:12px;border:1.5px solid var(--ink);background:var(--ink);color:#fff;padding:4px 10px}
+.logo small{font:600 10px var(--f-num);border:1px solid var(--line);padding:1px 5px;margin-left:6px;vertical-align:3px;letter-spacing:.04em}
+.iconbtn{font-size:12px;font-family:var(--f-num);border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:4px 10px}
+.demo{margin-top:10px;padding:8px 10px;border:1px dashed var(--line);background:var(--surface);font-size:13px;display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.demo button{font-size:12px;border:1px solid var(--line);background:var(--acc);color:#fff;padding:4px 10px}
 
 /* 아이 고르기 */
 .pets{display:flex;overflow-x:auto;padding-block:10px 2px;scrollbar-width:none}
-.pets button{flex:none;display:flex;align-items:center;gap:6px;border:1.5px solid var(--ink);background:var(--surface);color:var(--ink);padding:4px 12px 4px 4px;font-size:13.5px;font-weight:600;margin-right:-1.5px}
-.pets button[aria-pressed="true"]{background:var(--ink);color:#fff}
+.pets button{flex:none;display:flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:4px 12px 4px 4px;font-size:13.5px;font-weight:600;}
+.pets button[aria-pressed="true"]{background:var(--acc);color:#fff}
 .pets button.add{padding:4px 12px;color:var(--ink2);font-weight:500}
 .mini{width:24px;height:24px;flex:none;display:grid;place-items:center;border:1px solid currentColor;background:var(--soft) center/cover no-repeat;color:var(--ink);font-size:11px}
 .pets button[aria-pressed="true"] .mini{border-color:#fff}
@@ -34,11 +34,11 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 
 /* 아이 정보 카드 (진료기록부) */
 header.pet{margin-top:10px}
-.idcard{background:var(--surface);border:1.5px solid var(--ink);position:relative}
+.idcard{background:var(--surface);border:1px solid var(--line);position:relative}
 .idtop{display:flex;justify-content:space-between;gap:8px;font:500 10.5px var(--f-num);color:var(--ink2);padding:5px 10px;border-bottom:1px solid var(--grid);letter-spacing:.04em}
 .idbody{display:grid;grid-template-columns:96px 1fr;gap:12px;padding:10px}
 .idbody>div{min-width:0}
-.photo{position:relative;width:96px;height:120px;border:1.5px solid var(--ink);background:var(--soft) center/cover no-repeat;display:grid;place-items:center;padding:0;overflow:hidden;color:var(--ink2)}
+.photo{position:relative;width:96px;height:120px;border:1px solid var(--line);background:var(--soft) center/cover no-repeat;display:grid;place-items:center;padding:0;overflow:hidden;color:var(--ink2)}
 .photo::before,.photo::after{content:"";position:absolute;width:10px;height:10px;border:2px solid var(--red);z-index:1}
 .photo::before{top:3px;left:3px;border-right:0;border-bottom:0}
 .photo::after{bottom:3px;right:3px;border-left:0;border-top:0}
@@ -63,7 +63,7 @@ header.pet{margin-top:10px}
 .alertline i{font-style:normal;color:var(--red)}
 .alertline .d{margin-left:auto;font:600 11.5px var(--f-num)}
 .alertline.calm i{color:var(--ink2)}
-.minihead{display:flex;gap:10px;align-items:center;background:var(--surface);border:1.5px solid var(--ink);padding:8px 10px}
+.minihead{display:flex;gap:10px;align-items:center;background:var(--surface);border:1px solid var(--line);padding:8px 10px}
 .minihead .mini{width:40px;height:50px;font-size:14px}
 .minihead div{min-width:0}
 .minihead small{display:block;color:var(--ink2);font-size:12px}
@@ -80,11 +80,11 @@ h2 .en{font:600 10.5px var(--f-num);letter-spacing:.12em;color:var(--ink2);margi
 /* 오늘 진행 막대 */
 .prog{display:grid;gap:2px;margin:-2px 0 8px}
 .prog i{height:7px;background:var(--surface);border:1px solid var(--line)}
-.prog i.f{background:var(--ink);border-color:var(--ink)}
+.prog i.f{background:var(--acc);border-color:var(--acc)}
 
 /* 기록 버튼 */
 .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}
-.qb{border:1.5px solid var(--ink);background:var(--surface);color:var(--ink);padding:8px 8px 6px;text-align:left;display:flex;flex-direction:column;gap:2px;min-height:56px;min-width:0;position:relative;transition:transform .08s}
+.qb{border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:8px 8px 6px;text-align:left;display:flex;flex-direction:column;gap:2px;min-height:56px;min-width:0;position:relative;transition:transform .08s}
 .qb:active{transform:translateY(1px)}
 .qb b{font-size:14.5px;font-weight:600}
 .qb em{font-style:normal;font:500 10.5px var(--f-num);color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -94,7 +94,7 @@ h2 .en{font:600 10.5px var(--f-num);letter-spacing:.12em;color:var(--ink2);margi
 .qb.sym.done{background:var(--red-soft)}
 
 /* 목록 */
-.list,.card{background:var(--surface);border:1.5px solid var(--ink)}
+.list,.card{background:var(--surface);border:1px solid var(--line)}
 .card{padding:12px}
 .row{display:flex;align-items:center;gap:10px;padding:8px 10px;border-top:1px solid var(--grid)}
 .row:first-child{border-top:0}
@@ -107,7 +107,7 @@ h2 .en{font:600 10.5px var(--f-num);letter-spacing:.12em;color:var(--ink2);margi
 
 /* 우리 집 오늘 */
 .home{display:grid;gap:5px}
-.home .h{display:flex;gap:10px;align-items:center;background:var(--surface);border:1.5px solid var(--ink);padding:7px 10px}
+.home .h{display:flex;gap:10px;align-items:center;background:var(--surface);border:1px solid var(--line);padding:7px 10px}
 .home .h .mini{width:30px;height:30px}
 .home .h div{min-width:0;font-size:13px}
 .home .h b{font-size:14px;margin-right:4px}
@@ -115,9 +115,9 @@ h2 .en{font:600 10.5px var(--f-num);letter-spacing:.12em;color:var(--ink2);margi
 .home .done{color:var(--ok)}
 
 /* 고르기 칸 (산책 시간·사료·메모) */
-.picker{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;padding:10px;background:var(--surface);border:1.5px dashed var(--ink)}
+.picker{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;padding:10px;background:var(--surface);border:1px dashed var(--line)}
 .picker span{width:100%;font-size:13px;font-weight:600}
-.picker button{font-size:13px;border:1.5px solid var(--ink);background:var(--surface);color:var(--ink);padding:5px 12px}
+.picker button{font-size:13px;border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:5px 12px}
 .picker button:hover{background:var(--soft)}
 
 /* 체중 */
@@ -129,7 +129,7 @@ h2 .en{font:600 10.5px var(--f-num);letter-spacing:.12em;color:var(--ink2);margi
 .chart{margin-top:6px}
 .chart svg{width:100%;height:auto;display:block}
 .tbl{width:100%;border-collapse:collapse;font-size:13px}
-.tbl th{font:500 10.5px var(--f-num);color:var(--ink2);text-align:left;padding:6px 10px;border-bottom:1.5px solid var(--ink);letter-spacing:.06em}
+.tbl th{font:500 10.5px var(--f-num);color:var(--ink2);text-align:left;padding:6px 10px;border-bottom:1px solid var(--line);letter-spacing:.06em}
 .tbl td{padding:7px 10px;border-top:1px solid var(--grid);font-variant-numeric:tabular-nums}
 .tbl td.n{font-family:var(--f-num)}
 .tbl .dn{color:var(--red)}
@@ -138,14 +138,14 @@ h2 .en{font:600 10.5px var(--f-num);letter-spacing:.12em;color:var(--ink2);margi
 
 /* 입력 */
 .addw{display:flex;gap:6px;margin-top:10px}
-.addw input{flex:1;min-width:0;font:500 15px var(--f-num);padding:9px 10px;border:1.5px solid var(--ink);background:var(--surface);color:var(--ink)}
-.btn{font-weight:600;border:1.5px solid var(--ink);padding:9px 14px;background:var(--ink);color:#fff}
+.addw input{flex:1;min-width:0;font:500 15px var(--f-num);padding:9px 10px;border:1px solid var(--line);background:var(--surface);color:var(--ink)}
+.btn{font-weight:600;border:1px solid var(--line);padding:9px 14px;background:var(--acc);color:#fff}
 .btn.ghost{background:var(--surface);color:var(--ink)}
 .form{display:grid;gap:10px}
 .form>*{min-width:0}
 .form label{display:grid;gap:4px;font-size:12.5px;color:var(--ink2);font-weight:600}
-.form input,.form select,.form textarea{font:inherit;font-size:15px;padding:9px 10px;border:1.5px solid var(--line);background:var(--surface);color:var(--ink);min-width:0;border-radius:0}
-.form input:focus,.form select:focus,.form textarea:focus{border-color:var(--ink)}
+.form input,.form select,.form textarea{font:inherit;font-size:15px;padding:9px 10px;border:1px solid var(--line);background:var(--surface);color:var(--ink);min-width:0;border-radius:0}
+.form input:focus,.form select:focus,.form textarea:focus{border-color:var(--acc)}
 .form select,.form label>input,.form textarea{width:100%}
 .form .two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .form .r{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
@@ -158,20 +158,20 @@ textarea{resize:vertical}
 .sch:first-child{border-top:0}
 .sch .what{min-width:0;font-size:14px;font-weight:600}
 .sch .what small{display:block;font:500 11px var(--f-num);color:var(--ink2);margin-top:2px}
-.dday{font:600 12.5px var(--f-num);border:1.5px solid var(--ink);padding:3px 7px;text-align:center;min-width:58px}
+.dday{font:600 12.5px var(--f-num);border:1px solid var(--line);padding:3px 7px;text-align:center;min-width:58px}
 .dday.soon{color:var(--red);border-color:var(--red);transform:rotate(-4deg)}
 .dday.over{color:#fff;background:var(--red);border-color:var(--red);transform:rotate(-4deg)}
-.sch .dbtn{font-size:12px;border:1.5px solid var(--ink);background:var(--surface);padding:4px 8px}
+.sch .dbtn{font-size:12px;border:1px solid var(--line);background:var(--surface);padding:4px 8px}
 
 /* 병원용 요약 = 진료 의뢰서 */
 .seg{display:flex;margin-bottom:10px}
-.seg button{flex:1;font-size:13px;border:1.5px solid var(--ink);background:var(--surface);color:var(--ink);padding:6px 0;margin-right:-1.5px}
-.seg button[aria-pressed="true"]{background:var(--ink);color:#fff}
-.sheet{background:var(--surface);border:1.5px solid var(--ink);padding:14px 12px}
+.seg button{flex:1;font-size:13px;border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:6px 0;}
+.seg button[aria-pressed="true"]{background:var(--acc);color:#fff}
+.sheet{background:var(--surface);border:1px solid var(--line);padding:14px 12px}
 .sheet .hd{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
 .sheet .hd b{font-size:16px}
 .sheet .hd span{font:500 11px var(--f-num);color:var(--ink2)}
-.dochead{display:grid;grid-template-columns:64px 1fr;gap:10px;margin:10px 0 4px;padding-bottom:10px;border-bottom:1.5px solid var(--ink)}
+.dochead{display:grid;grid-template-columns:64px 1fr;gap:10px;margin:10px 0 4px;padding-bottom:10px;border-bottom:1px solid var(--line)}
 .dochead .kv{margin:0}
 .sheet h3{font:600 11px var(--f-num);letter-spacing:.1em;color:var(--ink2);margin:14px 0 4px}
 .flag{display:grid;grid-template-columns:84px 1fr;gap:8px;font-size:13px;padding:5px 0;border-bottom:1px solid var(--grid)}
@@ -183,14 +183,14 @@ textarea{resize:vertical}
 .lock{margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:6px}
 
 /* 하단 메뉴 */
-nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:8;background:var(--surface);border-top:2px solid var(--ink);padding-bottom:env(safe-area-inset-bottom,0px);padding-left:env(safe-area-inset-left,0px);padding-right:env(safe-area-inset-right,0px)}
+nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:8;background:var(--surface);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px);padding-left:env(safe-area-inset-left,0px);padding-right:env(safe-area-inset-right,0px)}
 nav.tabs .in{max-width:480px;margin:0 auto;display:grid;grid-template-columns:repeat(4,1fr)}
 nav.tabs button{font-size:12px;font-weight:600;background:none;border:0;border-left:1px solid var(--grid);color:var(--ink2);padding:9px 0 11px;display:flex;flex-direction:column;align-items:center;gap:3px}
 nav.tabs button:first-child{border-left:0}
 nav.tabs button[aria-current="page"]{color:var(--ink);background:var(--soft);box-shadow:inset 0 3px 0 var(--red)}
 nav.tabs svg{width:20px;height:20px}
 
-.toast{position:fixed;left:50%;bottom:calc(92px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:#fff;padding:8px 14px;font-size:13px;z-index:20;max-width:90vw}
+.toast{position:fixed;left:50%;bottom:calc(92px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--acc);color:#fff;padding:8px 14px;font-size:13px;z-index:20;max-width:90vw}
 .fam{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13px;color:var(--ink2)}
 .welcome h1{font-size:24px;margin:22px 0 6px;text-wrap:balance}
 .welcome p{color:var(--ink2);margin:0 0 14px}
@@ -200,24 +200,24 @@ nav.tabs svg{width:20px;height:20px}
 .form input[type=radio]{width:auto;padding:0}
 /* 호흡수 세기 화면 */
 .overlay{position:fixed;inset:0;z-index:30;background:rgba(15,28,48,.55);display:flex;align-items:flex-end;justify-content:center;padding:0 0 env(safe-area-inset-bottom,0px)}
-.ovin{width:100%;max-width:480px;background:var(--paper);border-top:2px solid var(--ink);padding:14px max(14px,env(safe-area-inset-left,0px)) 20px max(14px,env(safe-area-inset-right,0px))}
+.ovin{width:100%;max-width:480px;background:var(--paper);border-top:1px solid var(--line);padding:14px max(14px,env(safe-area-inset-left,0px)) 20px max(14px,env(safe-area-inset-right,0px))}
 .ovhelp{margin:0 0 10px;font-size:14px;color:var(--ink)}
-.tap{width:100%;height:46vh;max-height:360px;border:2px solid var(--ink);background:var(--surface);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;touch-action:manipulation;user-select:none;-webkit-user-select:none}
+.tap{width:100%;height:46vh;max-height:360px;border:1px solid var(--line);background:var(--surface);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;touch-action:manipulation;user-select:none;-webkit-user-select:none}
 .tap:active{background:var(--soft)}
 .tap b{font:600 72px var(--f-num);line-height:1}
 .tap span{font:500 14px var(--f-num);color:var(--ink2)}
-.ovres{display:flex;flex-direction:column;align-items:center;padding:18px 0;gap:4px;background:var(--surface);border:1.5px solid var(--ink);margin-bottom:10px}
+.ovres{display:flex;flex-direction:column;align-items:center;padding:18px 0;gap:4px;background:var(--surface);border:1px solid var(--line);margin-bottom:10px}
 .ovres span{color:var(--ink2);font-size:13px}
 .ovres b{font:600 56px var(--f-num)}
 .ovres b small{font-size:16px;color:var(--ink2);margin-left:4px}
 /* 일정: 한 날 고르기, 달력 */
-.donef{grid-column:1/-1;display:flex;gap:6px;align-items:flex-end;flex-wrap:wrap;margin-top:6px;padding:8px;border:1.5px dashed var(--ink);background:var(--paper)}
+.donef{grid-column:1/-1;display:flex;gap:6px;align-items:flex-end;flex-wrap:wrap;margin-top:6px;padding:8px;border:1px dashed var(--line);background:var(--paper)}
 .donef label{display:grid;gap:2px;font-size:12px;color:var(--ink2);flex:1;min-width:140px}
-.donef input{font:500 15px var(--f-num);padding:7px 8px;border:1.5px solid var(--ink);background:var(--surface);color:var(--ink)}
+.donef input{font:500 15px var(--f-num);padding:7px 8px;border:1px solid var(--line);background:var(--surface);color:var(--ink)}
 .donef .btn{padding:7px 12px}
 .schx{grid-column:1/-1}
 .linkbtn{border:0;background:none;padding:2px 0;font-size:12px;color:var(--ink2);text-decoration:underline;text-underline-offset:3px}
-a.tel{font-size:12px;font-weight:600;color:var(--ink);border:1.5px solid var(--ink);padding:0 6px;text-decoration:none;margin-left:4px;white-space:nowrap}
+a.tel{font-size:12px;font-weight:600;color:var(--ink);border:1px solid var(--line);padding:0 6px;text-decoration:none;margin-left:4px;white-space:nowrap}
 .tap{cursor:pointer;-webkit-tap-highlight-color:transparent}
 .tap.hit{animation:tapflash .18s ease-out}
 @keyframes tapflash{from{background:var(--soft)}to{background:var(--surface)}}
@@ -225,11 +225,11 @@ a.tel{font-size:12px;font-weight:600;color:var(--ink);border:1.5px solid var(--i
 /* 기록 시각 고르기 */
 .when{display:flex;align-items:center;gap:0;margin:0 0 6px;flex-wrap:wrap}
 .when span{font:600 10.5px var(--f-num);letter-spacing:.08em;color:var(--ink2);margin-right:8px}
-.when button{font-size:12px;border:1.5px solid var(--line);background:var(--surface);color:var(--ink2);padding:3px 8px;margin-right:-1.5px}
-.when button[aria-pressed="true"]{border-color:var(--ink);background:var(--ink);color:#fff;position:relative}
+.when button{font-size:12px;border:1px solid var(--line);background:var(--surface);color:var(--ink2);padding:3px 8px;}
+.when button[aria-pressed="true"]{border-color:var(--acc);background:var(--acc);color:#fff;position:relative}
 .when.on button[aria-pressed="true"]{background:var(--red);border-color:var(--red)}
 .whenpick{display:flex;gap:8px;align-items:center;margin:0 0 8px;padding:8px;border:1.5px dashed var(--red);background:var(--surface);font-size:13px;flex-wrap:wrap}
-.whenpick input{font:500 14px var(--f-num);padding:6px 8px;border:1.5px solid var(--ink);background:var(--surface);color:var(--ink);min-width:0}
+.whenpick input{font:500 14px var(--f-num);padding:6px 8px;border:1px solid var(--line);background:var(--surface);color:var(--ink);min-width:0}
 /* 여러 아이 한 번에, 마지막 밥 */
 .home .h small.ago{display:block;font:500 11px var(--f-num);color:var(--ink2)}
 .allrow{display:flex;gap:6px;flex-wrap:wrap}
@@ -241,7 +241,7 @@ details.yday{margin-top:6px}
 details.yday summary{font-size:12.5px;color:var(--ink2);cursor:pointer;padding:4px 0}
 .sr{position:absolute;left:-9999px}
 /* 돌봄 중인 질병 고르기 */
-.form fieldset.care{border:1.5px solid var(--line);background:var(--surface);margin:0;padding:8px 10px 10px;display:flex;flex-wrap:wrap;gap:6px 16px}
+.form fieldset.care{border:1px solid var(--line);background:var(--surface);margin:0;padding:8px 10px 10px;display:flex;flex-wrap:wrap;gap:6px 16px}
 .form fieldset.care legend{font-size:12.5px;color:var(--ink2);font-weight:600;padding:0 4px}
 .form fieldset.care label{display:flex;gap:6px;align-items:center;color:var(--ink);font-size:14.5px;font-weight:500}
 .form input[type=checkbox]{width:auto;padding:0;accent-color:var(--ink)}
@@ -249,3 +249,80 @@ details.yday summary{font-size:12.5px;color:var(--ink2);cursor:pointer;padding:4
 .qolf .qrow{display:grid;grid-template-columns:1fr repeat(3,auto);gap:4px 10px;align-items:center;padding:6px 0;border-top:1px dashed var(--line)}
 .qolf .qrow b{font-size:13.5px;color:var(--ink);font-weight:600}
 .qolf .qrow label{display:flex;gap:4px;align-items:center;font-size:13px;color:var(--ink);font-weight:500}
+
+/* ===== 시안 1 다듬기 ===== */
+.logo{font-weight:800;color:var(--acc)}
+.iconbtn{font-family:var(--f-body);border-radius:999px;border-color:var(--line);color:var(--ink2);padding:5px 12px}
+.demo{border-radius:var(--r);background:#FFF8EC;border:1px solid #F3DDB4}
+.demo button{border-radius:999px;border:0}
+.pets{gap:6px}
+.pets button{border:0;background:#E6EEEC;color:#3E5A55;border-radius:999px}
+.pets button[aria-pressed="true"]{background:var(--acc);color:#fff}
+.pets button.add{background:none;border:1px dashed var(--line)}
+.mini{border:0;border-radius:50%;background-color:#C9DCD8;color:var(--acc)}
+.pets button[aria-pressed="true"] .mini{background-color:var(--acc2);color:#fff}
+.idcard,.minihead,.list,.card,.sheet,.home .h,.picker,.ovres,.donef,.whenpick,.form fieldset.care{border-radius:var(--r)}
+.idcard{border:1px solid var(--line)}
+.idtop{border-bottom:1px solid var(--grid);font-size:11px}
+.photo{border:0;border-radius:16px;background-color:#DDEBE8;color:var(--acc)}
+.photo::before,.photo::after{display:none}
+.photo .chg{background:rgba(15,92,85,.82)}
+.stamp{color:var(--acc);border-color:var(--acc);opacity:.7}
+.tag{border-radius:6px;border:0;background:var(--red-soft);padding:1px 7px}
+.alertline i{color:var(--acc)}
+h2{font-size:15px}
+h2 .en{display:none}
+.prog{gap:4px}
+.prog i{border:0;background:var(--grid);border-radius:99px}
+.prog i.f{background:var(--acc)}
+.grid{grid-template-columns:1fr 1fr;gap:8px}
+.qb{border:1px solid var(--line);border-radius:var(--r);padding:11px 12px;min-height:62px}
+.qb b{font-size:15px;font-weight:700}
+.qb em{font-size:12px;color:#7A8E8A}
+.qb.done{background:var(--soft);border-color:#BFDCD6}
+.qb.done em{color:var(--acc);font-weight:700}
+.qb.done::after{color:var(--acc);right:10px;top:8px}
+.qb.sym.done{background:var(--red-soft);border-color:#F1CFC6}
+.qb.addc{border-style:dashed}
+.picker{border:1px solid #BFDCD6;background:#F2F8F6}
+.picker button{border:1px solid var(--line);border-radius:999px;background:var(--surface)}
+.btn{border:0;border-radius:12px;padding:10px 16px}
+.btn.ghost{border:1px solid var(--line)}
+.addw input,.form input,.form select,.form textarea,.donef input,.whenpick input{border:1px solid var(--line);border-radius:10px}
+.form input:focus,.form select:focus,.form textarea:focus{border-color:var(--acc)}
+.dday{border-radius:8px;border:1px solid var(--line)}
+.dday.soon,.dday.over{transform:none}
+.sch .dbtn{border-radius:999px;border:1px solid var(--line)}
+.seg{gap:6px}
+.seg button{border:0;border-radius:10px;background:#E6EEEC;color:#4E6762;font-weight:700}
+.seg button[aria-pressed="true"]{background:var(--ink);color:#fff}
+.dochead{border-bottom:1px solid var(--line)}
+.dochead .photo,.photoset .photo{border-radius:12px}
+.sheet h3{font-size:12px;letter-spacing:0;color:var(--acc);font-weight:700}
+.tbl th{border-bottom:1px solid var(--line);font-size:11.5px;letter-spacing:0}
+nav.tabs{border-top:1px solid var(--line)}
+nav.tabs button{border-left:0}
+nav.tabs button[aria-current="page"]{color:var(--acc);background:none;box-shadow:none;font-weight:800}
+.toast{border-radius:12px;background:var(--ink)}
+.ovin{border-top:0;border-radius:22px 22px 0 0}
+.tap{border:1px solid var(--line);border-radius:20px}
+a.tel{border:1px solid var(--line);border-radius:999px;padding:1px 8px;color:var(--acc)}
+.allrow .iconbtn{border-color:var(--line)}
+.form input[type=checkbox]{accent-color:var(--acc)}
+/* 질병별 칸 */
+.cseg{display:flex;gap:6px;margin:2px 0 10px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+.cseg button{flex:none;border:0;padding:7px 13px;border-radius:10px;font-size:13.5px;font-weight:700;background:#E6EEEC;color:#4E6762;position:relative}
+.cseg button[aria-pressed="true"]{background:var(--ink);color:#fff}
+.cseg button.c-heart{box-shadow:inset 0 -3px 0 #D9534F}.cseg button.c-kidney{box-shadow:inset 0 -3px 0 #2F86C9}.cseg button.c-diabetes{box-shadow:inset 0 -3px 0 #F2A93B}
+.cseg button.c-joint{box-shadow:inset 0 -3px 0 #6BA368}.cseg button.c-ccd{box-shadow:inset 0 -3px 0 #8B6FE0}.cseg button.c-hospice{box-shadow:inset 0 -3px 0 #C98BB9}
+.cseg button i{position:absolute;top:4px;right:4px;width:7px;height:7px;border-radius:50%;background:#F2A93B}
+.ctag{display:inline-block;font-size:11.5px;font-weight:700;padding:1px 8px;border-radius:6px;margin:4px 4px 0 0}
+.ctag.c-heart{background:#FBE6E5;color:#A8322E}.ctag.c-kidney{background:#E2F0FA;color:#1F5F91}.ctag.c-diabetes{background:#FFF0D6;color:#9A5B00}
+.ctag.c-joint{background:#E7F2E4;color:#3D6B3A}.ctag.c-ccd{background:#EDE7FB;color:#5B3FA8}.ctag.c-hospice{background:#F7E8F3;color:#8A4479}
+/* 기록한 뒤 시각 고치기 */
+.fixbar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 10px;padding:9px 12px;border-radius:var(--r);background:#F2F8F6;border:1px solid #BFDCD6;font-size:13px}
+.fixbar b{flex:1 1 100%;font-weight:700;color:var(--acc)}
+.fixbar button{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:4px 10px;font-size:12.5px}
+.fixbar button.x{margin-left:auto;border:0;background:none;color:var(--ink2)}
+.fixbar input{font:inherit;font-size:13px;padding:5px 8px;border:1px solid var(--line);border-radius:8px}
+.minihead .mini{width:44px;height:44px}
