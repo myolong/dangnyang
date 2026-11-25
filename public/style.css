@@ -126,3 +126,7 @@ nav.tabs svg{width:22px;height:22px}
 .welcome p{color:var(--muted);margin:0 0 16px}
 .danger{color:var(--crit);border-color:var(--crit)!important}
 textarea{resize:vertical}
+[hidden]{display:none!important}
+.del{border:0;background:none;color:var(--muted);font-size:16px;line-height:1;cursor:pointer;padding:0 4px;flex:none}
+.form>*{min-width:0}
+.form select,.form label>input,.form textarea{width:100%}

@@ -14,14 +14,14 @@
       { k: "dinner", ic: "저", label: "저녁밥", type: "meal" }, { k: "poop", ic: "변", label: "배변", type: "count" },
       { k: "medAM", ic: "약", label: "아침 약", type: "med" }, { k: "medPM", ic: "약", label: "저녁 약", type: "med" },
       { k: "cough", ic: "콜", label: "기침", type: "sym" }, { k: "vomit", ic: "토", label: "구토", type: "sym" },
-      { k: "diarrhea", ic: "설", label: "설사", type: "sym" }, { k: "note", ic: "✎", label: "메모", type: "note" }
+      { k: "diarrhea", ic: "설", label: "설사", type: "sym" }, { k: "snack", ic: "간", label: "간식", type: "snack" }, { k: "note", ic: "✎", label: "메모", type: "note" }
     ],
     cat: [
       { k: "breakfast", ic: "아", label: "아침밥", type: "meal" }, { k: "dinner", ic: "저", label: "저녁밥", type: "meal" },
       { k: "pee", ic: "소", label: "소변 덩어리", type: "count" }, { k: "poop", ic: "변", label: "대변", type: "count" },
       { k: "medAM", ic: "약", label: "약·보조제", type: "med" }, { k: "water", ic: "물", label: "물 많이 마심", type: "sym" },
       { k: "leftover", ic: "남", label: "밥 남김", type: "sym" }, { k: "vomit", ic: "토", label: "구토·헤어볼", type: "sym" },
-      { k: "diarrhea", ic: "설", label: "설사", type: "sym" }, { k: "note", ic: "✎", label: "메모", type: "note" }
+      { k: "diarrhea", ic: "설", label: "설사", type: "sym" }, { k: "snack", ic: "간", label: "간식", type: "snack" }, { k: "note", ic: "✎", label: "메모", type: "note" }
     ]
   };
 
@@ -51,6 +51,13 @@
   const age = (p) => { if (!p.birth) return ""; const b = new Date(fromIso(p.birth)), n = new Date(); let y = n.getFullYear() - b.getFullYear(); if (n.getMonth() < b.getMonth() || (n.getMonth() === b.getMonth() && n.getDate() < b.getDate())) y--; return y < 1 ? "1살 미만" : y + "살"; };
   const info = (p) => [p.breed, age(p), p.sex].filter(Boolean).join(" · ");
   const tags = (p) => [].concat((p.dx || "").split(",").map((s) => s.trim()).filter((s) => s && s !== "없음"), p.allergy && p.allergy !== "없음" ? [p.allergy + " 알레르기"] : []);
+  const FOODTYPE = { breakfast: "foods", dinner: "foods", snack: "snacks" };
+  // 최근에 쓴 것이 앞에 오도록 사료·간식 목록 정렬
+  function itemsFor(p, k) {
+    const list = (p[FOODTYPE[k]] || []).slice(), last = {};
+    S.logs.forEach((l) => { if (l.pid === p.id && l.food && FOODTYPE[l.k] === FOODTYPE[k]) last[l.food] = Math.max(last[l.food] || 0, l.t); });
+    return list.sort((a, b) => (last[b] || 0) - (last[a] || 0));
+  }
   const logsOf = (p) => S.logs.filter((l) => l.pid === p.id);
   function checks(p) {
     const c = p.species === "cat" ? [["breakfast", "아침밥"], ["dinner", "저녁밥"], ["pee", "화장실 확인"]] : [["breakfast", "아침밥"], ["dinner", "저녁밥"]];
@@ -96,13 +103,20 @@
     const house = S.pets.length > 1 ? `<section><h2>우리 집 오늘 <span class="pill">${S.pets.length}마리</span></h2><div class="home">${S.pets.map((q) => { const pd = pending(q); return `<div class="h"><span class="mini">${ICON[q.species]}</span><div><b>${esc(q.name)}</b> <span class="${pd.length ? "todo" : "done"}">${pd.length ? pd.join(", ") + " 아직" : "오늘 챙길 것 다 했어요"}</span></div></div>`; }).join("")}</div></section>` : "";
     let pk = "";
     if (picker === "walk") pk = `<div class="picker" role="group" aria-label="산책 시간"><span>몇 분 걸었나요?</span>${[10, 20, 30, 45, 60].map((m) => `<button data-walk="${m}" type="button">${m}분</button>`).join("")}</div>`;
+    if (FOODTYPE[picker]) {
+      const items = itemsFor(p, picker), what = picker === "snack" ? "간식" : "사료";
+      pk = `<div class="picker" role="group" aria-label="${what} 고르기"><span>${label(p, picker)}: 어떤 ${what}을 줬나요?</span>
+        ${items.map((f) => `<button data-food="${esc(f)}" type="button">${esc(f)}</button>`).join("")}
+        ${picker !== "snack" ? '<button data-food="" type="button" style="border-style:dashed">고르지 않고 기록</button>' : ""}
+        <form id="foodform" class="addw" style="width:100%;margin-top:4px"><input id="foodname" maxlength="30" placeholder="${items.length ? "다른 " + what + " 직접 입력" : what + " 이름 (예: " + (picker === "snack" ? "져키" : "로얄캐닌 처방식") + ")"}" autocomplete="off"><button class="btn" type="submit">기록</button></form></div>`;
+    }
     if (picker === "note") pk = `<form class="picker form" id="noteform" style="display:grid"><label style="color:var(--ink)">병원에 전할 메모<textarea id="notetext" rows="2" maxlength="200" placeholder="예: 밤에 기침하고 숨이 조금 가빠 보임"></textarea></label><div class="r"><button class="btn" type="submit">저장</button><button class="btn ghost" type="button" data-act="close-picker">취소</button></div></form>`;
     return `${house}
     <section><h2>${esc(p.name)} 한 번 눌러 기록</h2><div class="grid">${btns(p).map(btn).join("")}</div>${pk}</section>
     <section><h2>오늘 챙길 것</h2><div class="status">${checks(p).map(([k, l]) => st(k, l)).join("")}</div></section>
     <section><h2>다가오는 일정</h2><div class="list">${up.length ? up.map((s) => schRow(s, false)).join("") : '<div class="empty">일정 탭에서 접종·구충 일정을 넣으면 여기 보여요</div>'}</div></section>
     <section><h2>오늘 기록 <span class="pill">${today.length}건</span></h2>
-    <div class="list">${today.length ? today.map((l) => `<div class="row${(btns(p).find((b) => b.k === l.k) || {}).type === "sym" ? " sym" : ""}"><span class="time">${hm(l.t)}</span><span class="what">${label(p, l.k)}${l.min ? " " + l.min + "분" : ""}${l.text ? " · " + esc(l.text) : ""}</span><span class="who">${esc(l.by)}</span><button class="del" data-dellog="${l.id}" aria-label="이 기록 지우기" type="button">×</button></div>`).join("") : '<div class="empty">아직 기록이 없어요. 위 버튼을 눌러 보세요.</div>'}</div></section>`;
+    <div class="list">${today.length ? today.map((l) => `<div class="row${(btns(p).find((b) => b.k === l.k) || {}).type === "sym" ? " sym" : ""}"><span class="time">${hm(l.t)}</span><span class="what">${label(p, l.k)}${l.food ? " · " + esc(l.food) : ""}${l.min ? " " + l.min + "분" : ""}${l.text ? " · " + esc(l.text) : ""}</span><span class="who">${esc(l.by)}</span><button class="del" data-dellog="${l.id}" aria-label="이 기록 지우기" type="button">×</button></div>`).join("") : '<div class="empty">아직 기록이 없어요. 위 버튼을 눌러 보세요.</div>'}</div></section>`;
   }
 
   // ---------- 화면: 체중 ----------
@@ -171,6 +185,11 @@
       const d = Math.max(1, Math.round((N - firstLog) / DAY)), n = meds.reduce((a, b) => a + cnt(b.k), 0), exp = d * meds.length;
       rows.push(["약 복용", `${Math.min(100, Math.round((n / exp) * 100))}% (빠진 횟수 약 ${Math.max(0, exp - n)}회)`, false]);
     }
+    const tally = (keys) => { const m = {}; L.forEach((l) => { if (keys.includes(l.k) && l.food) m[l.food] = (m[l.food] || 0) + 1; }); return Object.entries(m).sort((a, b) => b[1] - a[1]); };
+    const foodsUsed = tally(["breakfast", "dinner"]);
+    if (foodsUsed.length) rows.push(["먹은 사료", foodsUsed.slice(0, 3).map(([f, n]) => `${esc(f)} ${n}회`).join(", "), false]);
+    const snacks = L.filter((l) => l.k === "snack");
+    if (snacks.length) { const st = tally(["snack"]); const sd = Math.max(1, Math.round((N - Math.max(from, Math.min(...PL.map((l) => l.t)))) / DAY)); rows.push(["간식", `${snacks.length}회, 하루 평균 ${(snacks.length / sd).toFixed(1)}회${st.length ? " (" + st.slice(0, 3).map(([f, n]) => `${esc(f)} ${n}`).join(", ") + ")" : ""}`, false]); }
     const mealN = cnt("breakfast") + cnt("dinner");
     if (mealN) { const firstLog = Math.max(from, Math.min(...PL.map((l) => l.t))); const d = Math.max(1, Math.round((N - firstLog) / DAY)); rows.push(["식사", Math.min(100, Math.round((mealN / (d * 2)) * 100)) + "%", false]); }
     B.filter((b) => b.type === "count").forEach((b) => { const c = cnt(b.k); if (!c) return; const rec = PL.filter((l) => l.k === b.k && l.t >= N - 28 * DAY).length / 28; rows.push([b.label, `하루 평균 ${(c / days).toFixed(1)}회 (최근 4주 ${rec.toFixed(1)}회)`, rec > (c / days) * 1.2 && rec >= 1]); });
@@ -198,6 +217,9 @@
     <section><h2>기록하는 사람</h2><div class="card form"><label>지금 이 휴대폰을 쓰는 사람<select id="me">${S.family.map((f) => `<option ${f === S.me ? "selected" : ""}>${esc(f)}</option>`).join("")}</select></label>
       <form class="addw" id="famform" style="margin:0"><input id="famname" maxlength="10" placeholder="가족 이름 추가 (예: 엄마)" autocomplete="off"><button class="btn" type="submit">추가</button></form>
       <div class="note" style="margin:0">가족이 각자 휴대폰으로 함께 기록하는 기능은 다음 업데이트에서 나와요. 지금은 한 휴대폰에서 누가 눌렀는지만 구분해요.</div></div></section>
+    ${(() => { const p = P(), chip = (key, f) => `<span class="who" style="display:inline-flex;gap:4px;align-items:center;color:var(--ink)">${esc(f)}<button class="del" data-delfood="${key}|${esc(f)}" aria-label="${esc(f)} 빼기" type="button">×</button></span>`;
+      return `<section><h2>${esc(p.name)} 사료·간식 목록</h2><div class="card"><div class="note" style="margin:0 0 6px">사료</div><div style="display:flex;gap:6px;flex-wrap:wrap">${(p.foods || []).map((f) => chip("foods", f)).join("") || '<span class="note" style="margin:0">아직 없어요. 아침밥·저녁밥을 누를 때 입력하면 여기 쌓여요.</span>'}</div>
+      <div class="note" style="margin:12px 0 6px">간식</div><div style="display:flex;gap:6px;flex-wrap:wrap">${(p.snacks || []).map((f) => chip("snacks", f)).join("") || '<span class="note" style="margin:0">아직 없어요. 간식 버튼을 누를 때 입력하면 여기 쌓여요.</span>'}</div></div></section>`; })()}
     <section><h2>백업</h2><div class="card"><div class="r" style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost" data-act="export" type="button">백업 파일 저장</button><label class="btn ghost" style="display:inline-block">백업 불러오기<input id="importfile" type="file" accept="application/json" hidden></label></div>
       <div class="note">기록은 이 휴대폰 브라우저에만 있어요. 브라우저 기록을 지우면 사라지니 가끔 백업해 두세요.</div></div></section>
     <section><h2>앱 설치</h2><div class="card note" style="margin:0">아이폰: 사파리 아래 공유 버튼 → "홈 화면에 추가"<br>안드로이드: 크롬 오른쪽 위 ⋮ → "앱 설치" 또는 "홈 화면에 추가"</div></section>
@@ -220,21 +242,23 @@
   }
 
   // ---------- 동작 ----------
-  function addLog(k, extra) { const p = P(); S.logs.push(Object.assign({ id: uid(), pid: p.id, k, t: now(), by: S.me }, extra || {})); save(); toast(p.name + " " + label(p, k) + " 기록했어요"); picker = null; render(); }
+  function addLog(k, extra) { const p = P(); S.logs.push(Object.assign({ id: uid(), pid: p.id, k, t: now(), by: S.me }, extra || {})); save(); toast(p.name + " " + label(p, k) + (extra && extra.food ? "(" + extra.food + ")" : "") + " 기록했어요"); picker = null; render(); }
   function demo() {
     const r = ((s) => () => ((s = (s * 1664525 + 1013904223) % 4294967296) / 4294967296))(42);
     const at = (d, h, m) => { const x = new Date(); x.setDate(x.getDate() - d); x.setHours(h, m, 0, 0); return x.getTime(); };
     const fam = ["나", "엄마", "민지"], S2 = blank(); S2.demo = true; S2.family = fam;
     const bori = { id: uid(), name: "보리", species: "dog", breed: "말티즈", birth: iso(at(13 * 365 + 40, 0, 0)), sex: "중성화 수컷", dx: "심장병(이첨판), 슬개골 2기", allergy: "닭고기", meds: "심장약 하루 2회 (아침·저녁)" };
     const nabi = { id: uid(), name: "나비", species: "cat", breed: "코리안 숏헤어", birth: iso(at(10 * 365 + 100, 0, 0)), sex: "중성화 암컷", dx: "신장 수치 관찰 중", allergy: "", meds: "신장 보조제 하루 1회" };
+    bori.foods = ["로얄캐닌 심장 처방식", "힐스 k/d"]; bori.snacks = ["져키", "덴탈껌", "고구마"];
+    nabi.foods = ["신장 처방식 습식", "신장 처방식 건식"]; nabi.snacks = ["츄르"];
     S2.pets = [bori, nabi]; S2.cur = bori.id;
     const add = (pid, k, d, h, m, extra) => { const t = at(d, h, m); if (t <= now()) S2.logs.push(Object.assign({ id: uid(), pid, k, t, by: fam[Math.floor(r() * 3)] }, extra || {})); };
     for (let d = 180; d >= 0; d--) {
-      add(bori.id, "breakfast", d, 8, Math.floor(r() * 30)); if (r() > 0.04) add(bori.id, "medAM", d, 8, 10 + Math.floor(r() * 30));
+      add(bori.id, "breakfast", d, 8, Math.floor(r() * 30), { food: d < 40 ? "로얄캐닌 심장 처방식" : "힐스 k/d" }); if (r() < 0.6) add(bori.id, "snack", d, 15, Math.floor(r() * 59), { food: ["져키", "덴탈껌", "고구마"][Math.floor(r() * 3)] }); if (r() > 0.04) add(bori.id, "medAM", d, 8, 10 + Math.floor(r() * 30));
       if (r() > 0.08) add(bori.id, "walk", d, 7 + Math.floor(r() * 2) * 11, Math.floor(r() * 50), { min: [15, 20, 25, 30][Math.floor(r() * 4)] });
-      if (r() > 0.06) add(bori.id, "dinner", d, 18, Math.floor(r() * 50)); if (r() > 0.07) add(bori.id, "medPM", d, 20, Math.floor(r() * 40));
+      if (r() > 0.06) add(bori.id, "dinner", d, 18, Math.floor(r() * 50), { food: d < 40 ? "로얄캐닌 심장 처방식" : "힐스 k/d" }); if (r() > 0.07) add(bori.id, "medPM", d, 20, Math.floor(r() * 40));
       add(bori.id, "poop", d, 9 + Math.floor(r() * 8), Math.floor(r() * 59)); if (r() < (d < 21 ? 0.45 : 0.08)) add(bori.id, "cough", d, 21 + Math.floor(r() * 2), Math.floor(r() * 59)); if (r() < 0.03) add(bori.id, "vomit", d, 14, Math.floor(r() * 59));
-      add(nabi.id, "breakfast", d, 7, 30 + Math.floor(r() * 25)); if (r() > 0.05) add(nabi.id, "medAM", d, 7, 50 + Math.floor(r() * 9)); if (r() > 0.04) add(nabi.id, "dinner", d, 19, Math.floor(r() * 50));
+      add(nabi.id, "breakfast", d, 7, 30 + Math.floor(r() * 25), { food: "신장 처방식 습식" }); if (r() < 0.3) add(nabi.id, "snack", d, 16, Math.floor(r() * 59), { food: "츄르" }); if (r() > 0.05) add(nabi.id, "medAM", d, 7, 50 + Math.floor(r() * 9)); if (r() > 0.04) add(nabi.id, "dinner", d, 19, Math.floor(r() * 50));
       const pees = 2 + Math.floor(r() * 2) + (d < 28 && r() < 0.5 ? 1 : 0); for (let i = 0; i < pees; i++) add(nabi.id, "pee", d, 8 + i * 5, Math.floor(r() * 59));
       if (r() > 0.15) add(nabi.id, "poop", d, 10 + Math.floor(r() * 8), Math.floor(r() * 59)); if (r() < (d < 28 ? 0.35 : 0.06)) add(nabi.id, "water", d, 15, Math.floor(r() * 59));
       if (r() < (d < 28 ? 0.25 : 0.05)) add(nabi.id, "leftover", d, 20, Math.floor(r() * 59)); if (r() < 0.05) add(nabi.id, "vomit", d, 6, Math.floor(r() * 59));
@@ -254,8 +278,10 @@
     if (d.act !== "wipe" && S.confirmWipe) { S.confirmWipe = false; }
     if (d.tab) { tab = d.tab; picker = null; editing = null; render(); scrollTo(0, 0); return; }
     if (d.pet) { S.cur = d.pet; if (tab === "settings") tab = "today"; picker = null; save(); render(); return; }
-    if (d.log) { if (d.log === "walk" || d.log === "note") { picker = picker === d.log ? null : d.log; render(); if (picker === "note") { const t = $("#notetext"); t && t.focus(); } return; } addLog(d.log); return; }
+    if (d.log) { if (d.log === "walk" || d.log === "note" || FOODTYPE[d.log]) { picker = picker === d.log ? null : d.log; render(); if (picker === "note") { const t = $("#notetext"); t && t.focus(); } return; } addLog(d.log); return; }
     if (d.walk) { addLog("walk", { min: +d.walk }); return; }
+    if (d.food !== undefined && FOODTYPE[picker]) { addLog(picker, d.food ? { food: d.food } : {}); return; }
+    if (d.delfood) { const p = P(), [key, name] = d.delfood.split("|"); p[key] = (p[key] || []).filter((x) => x !== name); save(); toast(name + " 목록에서 뺐어요"); render(); return; }
     if (d.dellog) { S.logs = S.logs.filter((l) => l.id !== d.dellog); save(); toast("기록을 지웠어요"); render(); return; }
     if (d.delw) { S.weights = S.weights.filter((w) => w.id !== d.delw); save(); toast("체중 기록을 지웠어요"); render(); return; }
     if (d.delsch) { S.sch = S.sch.filter((s) => s.id !== d.delsch); save(); toast("일정을 지웠어요"); render(); return; }
@@ -291,6 +317,7 @@
       if (ex) Object.assign(ex, data); else { const p = Object.assign({ id: uid() }, data); S.pets.push(p); S.cur = p.id; }
       editing = null; tab = "today"; save(); toast(name + (ex ? " 정보를 저장했어요" : " 등록했어요")); render(); scrollTo(0, 0); return;
     }
+    if (id === "foodform") { const name = v("#foodname"); if (!name || !FOODTYPE[picker]) { toast("이름을 적어 주세요"); return; } const p = P(), key = FOODTYPE[picker]; p[key] = p[key] || []; if (!p[key].includes(name)) p[key].push(name); addLog(picker, { food: name }); return; }
     if (id === "noteform") { const text = v("#notetext"); if (!text) { toast("메모를 적어 주세요"); return; } addLog("note", { text }); return; }
     if (id === "wform") { const kg = parseFloat(v("#wkg").replace(",", ".")); if (!(kg > 0.1 && kg < 120)) { toast("체중을 kg 숫자로 넣어 주세요 (예: 3.55)"); return; } const p = P(); S.weights.push({ id: uid(), pid: p.id, t: now(), kg }); save(); toast(p.name + " " + kg + "kg 기록했어요"); render(); return; }
     if (id === "schform") { const name = v("#s-name"), last = v("#s-last"), every = parseInt(v("#s-every"), 10); if (!name || !last || !(every > 0)) { toast("이름, 날짜, 간격을 모두 넣어 주세요"); return; } S.sch.push({ id: uid(), pid: P().id, name, last: fromIso(last), every }); save(); toast(name + " 일정을 추가했어요"); render(); return; }
