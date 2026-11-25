@@ -222,3 +222,20 @@ a.tel{font-size:12px;font-weight:600;color:var(--ink);border:1.5px solid var(--i
 .tap.hit{animation:tapflash .18s ease-out}
 @keyframes tapflash{from{background:var(--soft)}to{background:var(--surface)}}
 @media (prefers-reduced-motion: reduce){.tap.hit{animation:none}}
+/* 기록 시각 고르기 */
+.when{display:flex;align-items:center;gap:0;margin:0 0 6px;flex-wrap:wrap}
+.when span{font:600 10.5px var(--f-num);letter-spacing:.08em;color:var(--ink2);margin-right:8px}
+.when button{font-size:12px;border:1.5px solid var(--line);background:var(--surface);color:var(--ink2);padding:3px 8px;margin-right:-1.5px}
+.when button[aria-pressed="true"]{border-color:var(--ink);background:var(--ink);color:#fff;position:relative}
+.when.on button[aria-pressed="true"]{background:var(--red);border-color:var(--red)}
+.whenpick{display:flex;gap:8px;align-items:center;margin:0 0 8px;padding:8px;border:1.5px dashed var(--red);background:var(--surface);font-size:13px;flex-wrap:wrap}
+.whenpick input{font:500 14px var(--f-num);padding:6px 8px;border:1.5px solid var(--ink);background:var(--surface);color:var(--ink);min-width:0}
+/* 여러 아이 한 번에, 마지막 밥 */
+.home .h small.ago{display:block;font:500 11px var(--f-num);color:var(--ink2)}
+.allrow{display:flex;gap:6px;flex-wrap:wrap}
+.allrow .iconbtn{font-family:var(--f-body);font-size:13px;font-weight:600;padding:6px 10px}
+/* 칸 추가 */
+.qb.addc{border-style:dashed;color:var(--ink2)}
+.qb.addc b{font-weight:500}
+details.yday{margin-top:6px}
+details.yday summary{font-size:12.5px;color:var(--ink2);cursor:pointer;padding:4px 0}
