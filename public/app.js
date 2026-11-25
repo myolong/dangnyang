@@ -25,12 +25,21 @@
     ]
   };
 
+  // 돌봄 중인 질병: 고르면 기록 칸과 '오늘 챙길 것'이 더해짐 (진단·판단은 하지 않음)
+  const CARE = {
+    heart: { label: "심장병", btns: [{ k: "cough", label: "기침", type: "sym" }, { k: "tired", label: "숨참·쉽게 지침", type: "sym" }, { k: "faint", label: "쓰러짐·실신", type: "sym" }], check: [["resp", "잠잘 때 호흡수"]] },
+    kidney: { label: "신부전(만성 신장병)", btns: [{ k: "pee", label: "소변", type: "count" }, { k: "leftover", label: "밥 남김", type: "sym" }, { k: "fluid", label: "피하수액", type: "count" }], check: [["waterml", "음수량"]] }
+  };
+  const guessCare = (dx) => { const c = []; if (/심장|이첨판|심부전|MMVD|HCM|비대성/i.test(dx || "")) c.push("heart"); if (/신장|신부전|콩팥|CKD|신장병/i.test(dx || "")) c.push("kidney"); return c; };
+  const careOf = (p) => (p.care || []).filter((k) => CARE[k]);
+
   // ---------- 저장 ----------
-  const blank = () => ({ v: 1, pets: [], cur: null, me: "나", family: ["나"], logs: [], weights: [], sch: [], resp: [], demo: false });
+  const blank = () => ({ v: 1, pets: [], cur: null, me: "나", family: ["나"], logs: [], weights: [], sch: [], resp: [], labs: [], demo: false });
   let S;
   try { S = JSON.parse(localStorage.getItem(KEY) || "null"); } catch (e) { S = null; }
   if (!S || S.v !== 1) S = blank();
-  S.resp = S.resp || [];
+  S.resp = S.resp || []; S.labs = S.labs || [];
+  S.pets.forEach((p) => { if (!p.care) p.care = guessCare(p.dx); });
   function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { toast("저장 공간이 부족하거나 막혀 있어요"); } }
   const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 
@@ -46,7 +55,9 @@
   const sod = (t) => { const d = new Date(t); d.setHours(0, 0, 0, 0); return d.getTime(); };
   function toast(msg) { const el = $("#toast"); el.textContent = msg; el.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => (el.hidden = true), 2000); }
   const P = () => S.pets.find((p) => p.id === S.cur) || S.pets[0];
-  const btns = (p) => { const base = BUTTONS[p.species] || BUTTONS.dog, c = (p.custom || []).map((x) => ({ k: x.k, label: x.label, type: x.type })); return base.slice(0, -1).concat(c, base.slice(-1)); };
+  const btns = (p) => { const base = BUTTONS[p.species] || BUTTONS.dog, c = (p.custom || []).map((x) => ({ k: x.k, label: x.label, type: x.type }));
+    const cb = []; careOf(p).forEach((ck) => CARE[ck].btns.forEach((b) => { if (!base.some((x) => x.k === b.k) && !cb.some((x) => x.k === b.k)) cb.push(b); }));
+    return base.slice(0, -1).concat(cb, c, base.slice(-1)); };
   const ago = (t) => { const m = Math.floor((now() - t) / 60000); if (m < 1) return "방금"; if (m < 60) return m + "분 전"; if (m < 1440) return Math.floor(m / 60) + "시간 전"; const d = Math.round((sod(now()) - sod(t)) / DAY); return d === 1 ? "어제 " + hm(t) : d + "일 전"; };
   const dtl = (t) => { const d = new Date(t); return iso(t) + "T" + String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"); };
   // 기록 시각: 0=지금, 숫자=몇 분 전, 문자열=직접 고른 시각(datetime-local)
@@ -85,7 +96,11 @@
   function checks(p) {
     const c = p.species === "cat" ? [["breakfast", "아침밥"], ["dinner", "저녁밥"], ["pee", "화장실 확인"]] : [["breakfast", "아침밥"], ["dinner", "저녁밥"]];
     if (hasMeds(p)) p.species === "cat" ? c.unshift(["medAM", "약·보조제"]) : c.unshift(["medAM", "아침 약"], ["medPM", "저녁 약"]);
+    careOf(p).forEach((k) => CARE[k].check.forEach((x) => { if (!c.some((y) => y[0] === x[0])) c.push(x); }));
     return c;
+  }
+  // 오늘 했는지 (호흡수는 따로 저장)
+  function doneToday(p, k) { const t0 = sod(now()); return k === "resp" ? S.resp.some((r) => r.pid === p.id && r.t >= t0) : S.logs.some((l) => l.pid === p.id && l.k === k && l.t >= t0);
   }
 
   // ---------- 상태 ----------
@@ -103,6 +118,7 @@
       <label>생일(대략도 괜찮아요)<input id="f-birth" type="date" value="${esc(p.birth)}"></label></div>
       <label>성별<select id="f-sex">${["", "수컷", "암컷", "중성화 수컷", "중성화 암컷"].map((s) => `<option ${s === (p.sex || "") ? "selected" : ""} value="${s}">${s || "선택 안 함"}</option>`).join("")}</select></label>
       <label>진단받은 질환 (쉼표로 구분)<input id="f-dx" maxlength="100" value="${esc(p.dx)}" placeholder="예: 심장병, 슬개골 2기"></label>
+      <fieldset class="care"><legend>돌봄 중인 질병 · 고르면 맞는 기록 칸이 생겨요</legend>${Object.entries(CARE).map(([k, c]) => `<label><input type="checkbox" name="care" value="${k}" ${(p.care || guessCare(p.dx)).includes(k) ? "checked" : ""}> ${c.label}</label>`).join("")}</fieldset>
       <label>알레르기<input id="f-allergy" maxlength="50" value="${esc(p.allergy)}" placeholder="예: 닭고기"></label>
       <label>매일 먹는 약<input id="f-meds" maxlength="100" value="${esc(p.meds)}" placeholder="예: 심장약 하루 2회"></label>
       ${(() => { const ml = p.id ? medLeft(p) : null; return `<div class="two"><label>지금 남은 약 (알약·포 개수)<input id="f-stock" type="number" min="0" max="9999" step="0.5" inputmode="decimal" value="${ml ? +ml.left.toFixed(2) : ""}" placeholder="예: 60"></label>
@@ -115,20 +131,20 @@
     </form>`;
   }
   function vWelcome() {
-    return `<div class="welcome"><h1>병원 갈 때 내미는 진료기록 한 장</h1>
-    <p>산책, 밥, 약, 체중, 접종을 한 번 눌러 기록하고, 동물병원에서는 최근 기록을 한 장으로 보여 주세요. 강아지와 고양이를 함께 등록할 수 있어요.</p>
+    return `<div class="welcome"><h1>나이 들고 아픈 아이, 오래 곁에 있도록</h1>
+    <p>약, 밥, 물, 잠잘 때 호흡수를 한 번 눌러 기록하고, 동물병원에서는 최근 변화를 한 장으로 보여 주세요. 심장병·신부전처럼 돌봄 중인 질병을 고르면 그에 맞는 기록 칸이 생겨요. 강아지와 고양이를 함께 등록할 수 있어요.</p>
     ${petForm()}
     <p class="note" style="margin-top:14px">먼저 둘러보고 싶으시면 <button class="iconbtn" data-act="demo" type="button">예시로 둘러보기</button></p>
     <p class="note">기록은 이 휴대폰에만 저장돼요. 가족과 함께 쓰는 기능은 곧 추가돼요.</p></div>`;
   }
 
   // ---------- 화면: 오늘 ----------
-  function pending(p) { const t0 = sod(now()); return checks(p).filter(([k]) => !S.logs.some((l) => l.pid === p.id && l.k === k && l.t >= t0)).map((c) => c[1]); }
+  function pending(p) { return checks(p).filter(([k]) => !doneToday(p, k)).map((c) => c[1]); }
   function vToday() {
     const p = P(), N = now(), t0 = sod(N), today = logsOf(p).filter((l) => l.t >= t0).sort((a, b) => b.t - a.t);
     const recent = logsOf(p).filter((l) => l.t >= t0 - DAY).sort((a, b) => b.t - a.t);
     const lastOf = (k) => today.find((l) => l.k === k), lastAny = (k) => logsOf(p).filter((l) => l.k === k && l.t <= N).sort((a, b) => b.t - a.t)[0];
-    const ck = checks(p), doneN = ck.filter(([k]) => lastOf(k)).length;
+    const ck = checks(p), doneN = ck.filter(([k]) => doneToday(p, k)).length;
     const sub = (b, l) => {
       if (b.type === "ml") { const ml = today.filter((x) => x.k === b.k).reduce((a, x) => a + (x.ml || 0), 0); return ml ? "오늘 " + ml + "ml" : "ml로 기록"; }
       if (!l) { const old = b.type !== "note" && lastAny(b.k); return old && old.t >= N - 7 * DAY ? "마지막 " + ago(old.t) : b.type === "sym" ? "있으면 누르기" : "누르면 기록"; }
@@ -157,7 +173,7 @@
     const yday = recent.filter((l) => l.t < t0);
     return `${house}
     <section><h2><span><span class="en">TODAY</span>오늘 기록</span><span class="pill">챙길 것 ${doneN} / ${ck.length}</span></h2>
-    <div class="prog" style="grid-template-columns:repeat(${ck.length},1fr)" aria-hidden="true">${ck.map(([k]) => `<i class="${lastOf(k) ? "f" : ""}"></i>`).join("")}</div>
+    <div class="prog" style="grid-template-columns:repeat(${ck.length},1fr)" aria-hidden="true">${ck.map(([k]) => `<i class="${doneToday(p, k) ? "f" : ""}"></i>`).join("")}</div>
     <div class="when${when ? " on" : ""}" role="group" aria-label="기록 시각"><span>기록 시각</span>${wh}</div>
     ${typeof when === "string" ? `<div class="whenpick"><label for="whenat">언제 했나요?</label><input id="whenat" type="datetime-local" value="${when}" max="${dtl(N)}" min="${dtl(N - 7 * DAY)}"></div>` : ""}
     <div class="grid">${btns(p).map(btn).join("")}<button class="qb addc" data-act="custom-add" type="button"><b>+ 칸 추가</b><em>목욕·양치·인슐린 등</em></button></div>${pk}</section>
@@ -196,7 +212,7 @@
       ${ws.length > 1 ? `<span class="delta${pct <= -5 ? " dn" : ""}">${pct >= 0 ? "+" : ""}${pct.toFixed(1)}% (${md(first.t)} 대비)</span>` : ""}</div>
       ${ws.length > 1 ? `<div class="chart">${weightChart(ws)}</div>` : ""}${form}</div>
       <div class="note">6개월 사이 5% 넘게 줄면 빨간색으로 표시하고 병원용 요약에도 적어요. 원인 판단은 수의사 몫이고, 앱은 숫자만 보여 줘요.</div></section>
-      <section><h2><span><span class="en">RECORD</span>체중 기록</span></h2><div class="list"><table class="tbl"><thead><tr><th>날짜</th><th>체중</th><th>변화</th><th>기록</th><th></th></tr></thead><tbody>${rows}</tbody></table></div></section>${vResp(p)}`;
+      <section><h2><span><span class="en">RECORD</span>체중 기록</span></h2><div class="list"><table class="tbl"><thead><tr><th>날짜</th><th>체중</th><th>변화</th><th>기록</th><th></th></tr></thead><tbody>${rows}</tbody></table></div></section>${vResp(p)}${careOf(p).includes("kidney") || labsOf(p).length ? vLabs(p) : ""}`;
   }
   function vResp(p) {
     const rs = respOf(p), last = rs[rs.length - 1], rec = rs.filter((r) => r.t >= now() - 90 * DAY);
@@ -208,6 +224,21 @@
       <button class="btn" data-act="resp" type="button" style="width:100%;margin-top:6px">30초 동안 세기</button>${form}</div>
       <div class="note">푹 잠든 상태에서 가슴이 한 번 오르내리면 1번이에요. 앱은 숫자만 모아 보여 주고, 수치가 어떤 뜻인지는 수의사 선생님께 확인하세요.</div></section>
       ${rows ? `<section><h2><span><span class="en">RECORD</span>호흡수 기록</span></h2><div class="list"><table class="tbl"><thead><tr><th>날짜</th><th>1분 호흡수</th><th>기록</th><th></th></tr></thead><tbody>${rows}</tbody></table></div></section>` : ""}`;
+  }
+
+  // 혈액검사 수치 (신부전 돌봄). 기준치·판단은 넣지 않고 검사지 숫자만 모음
+  const LABK = [["bun", "BUN"], ["cre", "크레아티닌"], ["sdma", "SDMA"], ["phos", "인(P)"]];
+  const labsOf = (p) => S.labs.filter((x) => x.pid === p.id).sort((a, b) => a.t - b.t);
+  const labTxt = (x) => LABK.filter(([k]) => x[k] != null).map(([k, n]) => n + " " + x[k]).join(" · ");
+  function vLabs(p) {
+    const ls = labsOf(p);
+    const rows = ls.slice().reverse().slice(0, 10).map((x) => `<tr><td class="n">${ymd(x.t).slice(2)}</td>${LABK.map(([k]) => `<td class="n">${x[k] == null ? "" : x[k]}</td>`).join("")}<td><button class="del" data-dellab="${x.id}" aria-label="이 검사 기록 지우기" type="button">×</button></td></tr>`).join("");
+    return `<section><h2><span><span class="en">LAB</span>${esc(p.name)} 혈액검사 수치</span></h2><form class="form card" id="labform">
+      <label>검사한 날<input id="l-date" type="date" required value="${iso(now())}" max="${iso(now())}"></label>
+      <div class="two">${LABK.map(([k, n]) => `<label>${n}<input id="l-${k}" inputmode="decimal" maxlength="8" autocomplete="off" placeholder="검사지 숫자"></label>`).join("")}</div>
+      <div class="r"><button class="btn" type="submit">저장</button></div>
+      <div class="note" style="margin:0">병원에서 받은 검사지 숫자를 단위 그대로 옮겨 적어 주세요. 있는 칸만 채우면 돼요. 정상 범위와 뜻은 수의사 선생님께 확인하세요.</div></form></section>
+      ${rows ? `<section><h2><span><span class="en">RECORD</span>검사 기록</span></h2><div class="list"><table class="tbl"><thead><tr><th>날짜</th>${LABK.map(([, n]) => `<th>${n}</th>`).join("")}<th></th></tr></thead><tbody>${rows}</tbody></table></div></section>` : ""}`;
   }
 
   // ---------- 화면: 일정 ----------
@@ -266,9 +297,11 @@
     if (wR) rows.push(["음수량", `최근 2주 하루 평균 ${Math.round(wR.avg)}ml (${wR.n}일 기록)` + (wB ? `, 그 전 ${Math.round(wB.avg)}ml` : ""), !!wB && wR.avg >= wB.avg * 1.3]);
     const rs = S.resp.filter((r) => r.pid === p.id), rRec = rs.filter((r) => r.t >= N - 14 * DAY), rBef = rs.filter((r) => r.t < N - 14 * DAY && r.t >= N - 74 * DAY), avg = (a) => a.reduce((x, r) => x + r.bpm, 0) / a.length;
     if (rRec.length) { const a = avg(rRec), b = rBef.length ? avg(rBef) : 0; rows.push(["잠잘 때 호흡수", `최근 2주 평균 ${Math.round(a)}회/분 (${rRec.length}번 잼, 최고 ${Math.max(...rRec.map((r) => r.bpm))})` + (b ? `, 그 전 평균 ${Math.round(b)}회` : ""), b > 0 && a >= b * 1.2 && a - b >= 4]); }
+    const lb = labsOf(p), lL = lb[lb.length - 1], lP = lb[lb.length - 2];
+    if (lL) { const up = lP && LABK.some(([k]) => lL[k] != null && lP[k] != null && lP[k] > 0 && lL[k] >= lP[k] * 1.2); rows.push(["혈액검사", `${ymd(lL.t).slice(2)} ${labTxt(lL)}` + (lP ? ` (이전 ${ymd(lP.t).slice(2)} ${labTxt(lP)})` : ""), !!up]); }
     const notes = L.filter((l) => l.k === "note").sort((a, b) => b.t - a.t), sch = nextSchedules(p);
     return { p, from, N, rows, notes, sch, ws,
-      basics: [["종류 · 정보", (p.species === "cat" ? "고양이" : "강아지") + (info(p) ? " · " + info(p) : "")], ["진단받은 질환", p.dx || "없음"], ["알레르기", p.allergy || "없음"], ["매일 먹는 약", p.meds || "없음"]].concat(p.clinic || p.cphone ? [["다니는 병원", [p.clinic, p.cphone].filter(Boolean).join(" ")]] : []) };
+      basics: [["종류 · 정보", (p.species === "cat" ? "고양이" : "강아지") + (info(p) ? " · " + info(p) : "")], ["진단받은 질환", [p.dx, careOf(p).filter((k) => !guessCare(p.dx).includes(k)).map((k) => CARE[k].label).join(", ")].filter(Boolean).join(", ") || "없음"], ["알레르기", p.allergy || "없음"], ["매일 먹는 약", p.meds || "없음"]].concat(p.clinic || p.cphone ? [["다니는 병원", [p.clinic, p.cphone].filter(Boolean).join(" ")]] : []) };
   }
   function vSummary() {
     const D = summaryData(P()), { p, from, N, rows, notes, sch } = D;
@@ -470,7 +503,9 @@
     [4.62, 4.6, 4.61, 4.57, 4.55, 4.52, 4.38].forEach((kg, i) => S2.weights.push({ id: uid(), pid: nabi.id, t: at(i < 6 ? 170 - i * 33 : 4, 9, 0), kg, by: fam[(i + 1) % 3] }));
     [["심장사상충 예방약", 24, 30], ["외부 구충제", 24, 30], ["정기검진(심장 초음파)", 170, 180], ["종합백신", 260, 365], ["광견병 접종", 260, 365]].forEach(([name, d, every]) => S2.sch.push({ id: uid(), pid: bori.id, name, last: sod(at(d, 0, 0)), every }));
     [["외부 구충제", 28, 30], ["신장 혈액검사", 85, 90], ["종합백신", 300, 365]].forEach(([name, d, every]) => S2.sch.push({ id: uid(), pid: nabi.id, name, last: sod(at(d, 0, 0)), every }));
-    bori.custom = [{ k: "c_teeth", label: "양치", type: "count" }];
+    bori.custom = [{ k: "c_teeth", label: "양치", type: "count" }]; bori.care = ["heart"]; nabi.care = ["kidney"];
+    for (let d = 90; d >= 0; d--) { if (r() < (d < 14 ? 0.3 : 0.05)) add(bori.id, "tired", d, 17, Math.floor(r() * 59)); if (d <= 45 && d % 2 === 0) add(nabi.id, "fluid", d, 21, Math.floor(r() * 30)); }
+    [[170, 28, 1.8, 13, 4.1], [85, 31, 2.0, 15, 4.4], [6, 36, 2.3, 18, 4.9]].forEach(([d, bun, cre, sdma, phos], i) => S2.labs.push({ id: uid(), pid: nabi.id, t: sod(at(d, 0, 0)), bun, cre, sdma, phos, by: fam[i % 3] }));
     for (let d = 60; d >= 0; d--) { if (r() < 0.7) add(bori.id, "c_teeth", d, 21, Math.floor(r() * 59)); add(nabi.id, "waterml", d, 9, 0, { ml: (d < 14 ? 160 : 110) + 10 * Math.floor(r() * 4) }); }
     for (let d = 88; d >= 0; d -= 3) { const t = at(d, 23, 10); if (t <= now()) S2.resp.push({ id: uid(), pid: bori.id, t, bpm: (d < 14 ? 28 : 22) + 2 * Math.floor(r() * 3), by: fam[Math.floor(r() * 3)] }); }
     return S2;
@@ -496,6 +531,7 @@
     if (d.delsch) { S.sch = S.sch.filter((s) => s.id !== d.delsch); save(); toast("일정을 지웠어요"); render(); return; }
     if (d.done) { doneSch = doneSch === d.done ? null : d.done; render(); return; }
     if (d.ics) { const s = nextSchedules(P()).find((x) => x.id === d.ics); if (s) saveIcs([s], P()); return; }
+    if (d.dellab) { S.labs = S.labs.filter((x) => x.id !== d.dellab); save(); toast("검사 기록을 지웠어요"); render(); return; }
     if (d.delr) { S.resp = S.resp.filter((r) => r.id !== d.delr); save(); toast("호흡수 기록을 지웠어요"); render(); return; }
     if (d.period) { period = +d.period; render(); return; }
     if (d.editpet) { editing = d.editpet; render(); return; }
@@ -535,7 +571,7 @@
     if (e.target.id === "whenat") { when = e.target.value || 0; render(); return; }
     if (e.target.id === "me") { S.me = e.target.value; save(); toast(S.me + "(으)로 기록해요"); }
     if (e.target.id === "importfile" && e.target.files[0]) {
-      const fr = new FileReader(); fr.onload = () => { try { const d = JSON.parse(fr.result); if (d.v !== 1 || !Array.isArray(d.pets)) throw 0; S = d; S.demo = false; save(); tab = "today"; toast("백업을 불러왔어요"); render(); } catch (_) { toast("오래곁에 백업 파일이 아니에요"); } }; fr.readAsText(e.target.files[0]);
+      const fr = new FileReader(); fr.onload = () => { try { const d = JSON.parse(fr.result); if (d.v !== 1 || !Array.isArray(d.pets)) throw 0; S = d; S.demo = false; S.resp = S.resp || []; S.labs = S.labs || []; S.pets.forEach((q) => { if (!q.care) q.care = guessCare(q.dx); }); save(); tab = "today"; toast("백업을 불러왔어요"); render(); } catch (_) { toast("오래곁에 백업 파일이 아니에요"); } }; fr.readAsText(e.target.files[0]);
     }
   });
   document.addEventListener("submit", (e) => {
@@ -543,7 +579,7 @@
     const id = e.target.id, v = (s) => ($(s) ? $(s).value.trim() : "");
     if (id === "petform") {
       const name = v("#f-name"); if (!name) { toast("이름을 넣어 주세요"); return; }
-      const data = { name, species: (document.querySelector("input[name=sp]:checked") || {}).value || "dog", breed: v("#f-breed"), birth: v("#f-birth"), sex: v("#f-sex"), dx: v("#f-dx"), allergy: v("#f-allergy"), meds: v("#f-meds"), clinic: v("#f-clinic"), cphone: v("#f-cphone"), chours: v("#f-chours") };
+      const data = { name, species: (document.querySelector("input[name=sp]:checked") || {}).value || "dog", breed: v("#f-breed"), birth: v("#f-birth"), sex: v("#f-sex"), dx: v("#f-dx"), allergy: v("#f-allergy"), meds: v("#f-meds"), clinic: v("#f-clinic"), cphone: v("#f-cphone"), chours: v("#f-chours"), care: [...document.querySelectorAll("input[name=care]:checked")].map((x) => x.value) };
       const stock = parseFloat(v("#f-stock").replace(",", ".")), perDay = parseFloat(v("#f-perday").replace(",", "."));
       data.stock = stock >= 0 && perDay > 0 ? { count: stock, perDay, at: sod(now()) } : null;
       if (S.demo) { S = blank(); }
@@ -559,6 +595,12 @@
     if (id === "mlform") { const n = parseInt(v("#mlval"), 10); if (!(n > 0 && n < 5000)) { toast("ml 숫자로 넣어 주세요"); return; } addLog("waterml", { ml: n }); return; }
     if (e.target.classList.contains("foodadd")) { const key = e.target.dataset.key, inp = e.target.querySelector("input"), name = inp.value.trim(); if (!name) { toast("이름을 적어 주세요"); return; } const p = P(); p[key] = p[key] || []; if (p[key].includes(name)) { toast("이미 목록에 있어요"); return; } p[key].push(name); save(); toast(name + " 추가했어요"); render(); const again = $("#add-" + key); if (again) again.focus(); return; }
     if (id === "customform") { const name = v("#cname"), type = v("#ctype") || "count"; if (!name) { toast("칸 이름을 적어 주세요"); return; } const p = P(); p.custom = p.custom || []; if (btns(p).some((b) => b.label === name)) { toast("같은 이름의 칸이 이미 있어요"); return; } p.custom.push({ k: "c_" + uid(), label: name, type }); save(); toast(name + " 칸을 추가했어요"); render(); return; }
+    if (id === "labform") {
+      const t = fromIso(v("#l-date") || iso(now())), rec = { id: uid(), pid: P().id, t, by: S.me }; let n = 0;
+      for (const [k] of LABK) { const raw = v("#l-" + k).replace(",", "."); if (!raw) continue; const x = parseFloat(raw); if (!(x >= 0 && x < 100000)) { toast("숫자로 넣어 주세요"); return; } rec[k] = x; n++; }
+      if (!n) { toast("수치를 하나 이상 넣어 주세요"); return; }
+      S.labs.push(rec); save(); toast("검사 수치를 저장했어요"); render(); return;
+    }
     if (id === "rform") { const n = parseInt(v("#rbpm"), 10); if (!(n >= 4 && n <= 200)) { toast("1분에 숨 쉰 횟수를 숫자로 넣어 주세요"); return; } addResp(n); return; }
     if (id === "famform") { const n = v("#famname"); if (!n || S.family.includes(n)) return; S.family.push(n); save(); toast(n + " 추가했어요"); render(); return; }
   });
