@@ -239,3 +239,4 @@ a.tel{font-size:12px;font-weight:600;color:var(--ink);border:1.5px solid var(--i
 .qb.addc b{font-weight:500}
 details.yday{margin-top:6px}
 details.yday summary{font-size:12.5px;color:var(--ink2);cursor:pointer;padding:4px 0}
+.sr{position:absolute;left:-9999px}
