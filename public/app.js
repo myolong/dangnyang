@@ -358,23 +358,27 @@
   // ---------- 잠잘 때 호흡수 세기 (30초) ----------
   function addResp(bpm) { const p = P(); S.resp.push({ id: uid(), pid: p.id, t: now(), bpm, by: S.me }); save(); toast(p.name + " 호흡수 " + bpm + "회/분 기록했어요"); render(); }
   function openResp() {
+    // 화면은 한 번만 만들고 숫자 글자만 바꿈 (다시 그리는 중에 누른 게 빠지지 않도록), 손가락이 닿는 순간(pointerdown)에 셈
     const p = P(), ov = document.createElement("div"); ov.className = "overlay"; document.body.appendChild(ov);
     let n = 0, t0 = 0, timer = null; const SEC = 30;
+    ov.innerHTML = `<div class="ovin"><div class="idtop" style="border:0;padding:0 0 8px"><span>RESP · ${esc(p.name)} 잠잘 때 호흡수</span><button class="iconbtn" data-ov="close" type="button">닫기</button></div>
+      <div data-part="count"><p class="ovhelp">아이가 푹 잠들었을 때, 가슴이 한 번 오르내리면 아래를 한 번 누르세요. 처음 누를 때 30초가 시작돼요.</p>
+        <div class="tap" role="button" tabindex="0" aria-label="숨 쉴 때마다 누르기"><b>0</b><span>눌러서 시작</span></div></div>
+      <div data-part="done" hidden><div class="ovres"><span></span><b></b></div><div class="lock"><button class="btn" data-ov="save" type="button">저장</button><button class="btn ghost" data-ov="again" type="button">다시 세기</button></div></div></div>`;
+    const tap = ov.querySelector(".tap"), num = tap.querySelector("b"), sub = tap.querySelector("span"), help = ov.querySelector(".ovhelp");
+    const partC = ov.querySelector('[data-part="count"]'), partD = ov.querySelector('[data-part="done"]');
+    const finish = () => { clearInterval(timer); partC.hidden = true; partD.hidden = false; partD.querySelector(".ovres span").textContent = "30초 동안 " + n + "번"; partD.querySelector(".ovres b").innerHTML = n * 2 + "<small>회/분</small>"; };
+    const tick = () => { const left = SEC - (Date.now() - t0) / 1000; if (left <= 0) return finish(); sub.textContent = Math.ceil(left) + "초 남음"; };
+    const hit = (e) => { if (e) e.preventDefault(); if (!partD.hidden) return;
+      if (!t0) { t0 = Date.now(); timer = setInterval(tick, 200); help.textContent = "가슴이 오르내릴 때마다 누르세요"; }
+      n++; num.textContent = n; tap.classList.remove("hit"); void tap.offsetWidth; tap.classList.add("hit"); tick(); };
+    tap.addEventListener("pointerdown", hit);
+    tap.addEventListener("keydown", (e) => { if (e.key === " " || e.key === "Enter") hit(e); });
     const close = () => { clearInterval(timer); ov.remove(); };
-    const draw = () => {
-      const left = t0 ? Math.max(0, SEC - Math.floor((Date.now() - t0) / 1000)) : SEC, done = t0 && left === 0;
-      ov.innerHTML = `<div class="ovin"><div class="idtop" style="border:0;padding:0 0 8px"><span>RESP · ${esc(p.name)} 잠잘 때 호흡수</span><button class="iconbtn" data-ov="close" type="button">닫기</button></div>
-        ${done ? `<div class="ovres"><span>30초 동안 ${n}번</span><b>${n * 2}<small>회/분</small></b></div><div class="lock"><button class="btn" data-ov="save" type="button">저장</button><button class="btn ghost" data-ov="again" type="button">다시 세기</button></div>`
-        : `<p class="ovhelp">${t0 ? "가슴이 오르내릴 때마다 누르세요" : "아이가 푹 잠들었을 때, 가슴이 한 번 오르내리면 아래를 한 번 누르세요. 처음 누를 때 30초가 시작돼요."}</p>
-          <button class="tap" data-ov="tap" type="button"><b>${n}</b><span>${t0 ? left + "초 남음" : "눌러서 시작"}</span></button>`}</div>`;
-      if (done) clearInterval(timer);
-    };
     ov.addEventListener("click", (e) => { const b = e.target.closest("[data-ov]"); if (!b) return; const a = b.dataset.ov;
       if (a === "close") close();
-      if (a === "tap") { if (!t0) { t0 = Date.now(); timer = setInterval(draw, 250); } n++; if (navigator.vibrate) try { navigator.vibrate(15); } catch (_) {} draw(); }
-      if (a === "again") { n = 0; t0 = 0; clearInterval(timer); draw(); }
+      if (a === "again") { n = 0; t0 = 0; clearInterval(timer); num.textContent = "0"; sub.textContent = "눌러서 시작"; partD.hidden = true; partC.hidden = false; }
       if (a === "save") { close(); addResp(n * 2); } });
-    draw();
   }
 
   // 아이 정보 카드: 진료기록부처럼
