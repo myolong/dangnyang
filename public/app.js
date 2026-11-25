@@ -280,7 +280,7 @@
       <h3>기간 중 변화</h3>${rows.map(([a, b, f]) => `<div class="flag${f ? " hi" : ""}"><span>${esc(a)}</span><span>${esc(b)}</span></div>`).join("")}
       <h3>보호자 메모</h3>${notes.length ? `<ul>${notes.map((n) => `<li>${md(n.t)} ${esc(n.text)} (${esc(n.by)})</li>`).join("")}</ul>` : '<div class="note" style="margin:0">메모 없음</div>'}
       <h3>예방·접종</h3>${sch.length ? sch.map((s) => `<div class="flag"><span>${esc(s.name)}</span><span class="mono">${ymd(s.last)} (다음 ${ymd(s.due).slice(5)})</span></div>`).join("") : '<div class="note" style="margin:0">등록된 일정 없음</div>'}
-      <div class="sign"><span>기록: ${esc(by.join("·") || S.me)}</span><span>댕냥차트 ${chartNo(p)}</span></div>
+      <div class="sign"><span>기록: ${esc(by.join("·") || S.me)}</span><span>오래곁에 ${chartNo(p)}</span></div>
       <div class="note">보호자가 앱에 기록한 내용을 정리한 것으로, 진단이 아닙니다.</div></article>
     <div class="lock"><button class="btn" data-act="image" type="button">이미지로 저장·공유</button><button class="btn ghost" data-act="copy" type="button">글자로 복사</button></div>
     <div class="note">빨간 글씨는 숫자가 크게 바뀐 항목이에요. 진료실에서 이 화면을 보여 주거나, 이미지로 저장해 카톡으로 보내세요.</div></section>`;
@@ -336,7 +336,7 @@
     y += 14; section("예방·접종");
     if (sch.length) sch.forEach((s) => row(s.name, ymd(s.last) + " (다음 " + ymd(s.due) + ")", false)); else row("등록된 일정", "없음", false);
     y += 48; font(24); x.fillStyle = C.muted; x.fillText("보호자가 앱에 기록한 내용을 정리한 것으로, 진단이 아닙니다.", PAD, y);
-    y += 56; x.fillStyle = C.soft; x.fillRect(0, y, W, 72); font(26, 600); x.fillStyle = C.accent; x.fillText("댕냥차트", PAD, y + 46); font(24); x.fillStyle = C.muted; x.textAlign = "right"; x.fillText(location.host, W - PAD, y + 46); x.textAlign = "left";
+    y += 56; x.fillStyle = C.soft; x.fillRect(0, y, W, 72); font(26, 600); x.fillStyle = C.accent; x.fillText("오래곁에", PAD, y + 46); font(24); x.fillStyle = C.muted; x.textAlign = "right"; x.fillText(location.host, W - PAD, y + 46); x.textAlign = "left";
     y += 72;
     const out = document.createElement("canvas"); out.width = W; out.height = y; out.getContext("2d").drawImage(cv, 0, 0);
     return new Promise((res) => out.toBlob((b) => res(b), "image/png"));
@@ -380,7 +380,7 @@
     if (!list.length) return;
     const d8 = (t) => iso(t).replace(/-/g, ""), stamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d+/, "");
     const ev = list.map((s) => ["BEGIN:VEVENT", "UID:" + s.id + "-" + d8(s.due) + "@dangnyang", "DTSTAMP:" + stamp, "DTSTART;VALUE=DATE:" + d8(s.due), "DTEND;VALUE=DATE:" + d8(s.due + DAY),
-      "SUMMARY:" + (p.name + " " + s.name).replace(/[,;\\]/g, " "), "DESCRIPTION:댕냥차트 일정 (" + s.every + "일마다)", "BEGIN:VALARM", "TRIGGER:-PT15H", "ACTION:DISPLAY", "DESCRIPTION:내일 " + (p.name + " " + s.name).replace(/[,;\\]/g, " "), "END:VALARM", "END:VEVENT"].join("\r\n"));
+      "SUMMARY:" + (p.name + " " + s.name).replace(/[,;\\]/g, " "), "DESCRIPTION:오래곁에 일정 (" + s.every + "일마다)", "BEGIN:VALARM", "TRIGGER:-PT15H", "ACTION:DISPLAY", "DESCRIPTION:내일 " + (p.name + " " + s.name).replace(/[,;\\]/g, " "), "END:VALARM", "END:VEVENT"].join("\r\n"));
     const text = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//dangnyang//KO", "CALSCALE:GREGORIAN", ev.join("\r\n"), "END:VCALENDAR"].join("\r\n");
     const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([text], { type: "text/calendar" })); a.download = p.name + "-일정.ics"; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
     toast("달력 파일을 열면 일정이 추가돼요");
@@ -505,7 +505,7 @@
       case "close-picker": picker = null; render(); return;
       case "demo": S = demo(); save(); tab = "today"; render(); return;
       case "clear-demo": S = blank(); save(); tab = "today"; render(); return;
-      case "export": download("댕냥차트-백업-" + iso(now()) + ".json", JSON.stringify(S)); toast("백업 파일을 저장했어요"); return;
+      case "export": download("오래곁에-백업-" + iso(now()) + ".json", JSON.stringify(S)); toast("백업 파일을 저장했어요"); return;
       case "wipe": if (!S.confirmWipe) { S.confirmWipe = true; render(); return; } S = blank(); save(); tab = "today"; editing = null; toast("모든 기록을 지웠어요"); render(); return;
       case "photo": photoPid = d.pid; $("#photofile").value = ""; $("#photofile").click(); return;
       case "photo-del": { const q = S.pets.find((x) => x.id === d.pid); if (q) { delete q.photo; save(); toast("사진을 뺐어요"); render(); } return; }
@@ -535,7 +535,7 @@
     if (e.target.id === "whenat") { when = e.target.value || 0; render(); return; }
     if (e.target.id === "me") { S.me = e.target.value; save(); toast(S.me + "(으)로 기록해요"); }
     if (e.target.id === "importfile" && e.target.files[0]) {
-      const fr = new FileReader(); fr.onload = () => { try { const d = JSON.parse(fr.result); if (d.v !== 1 || !Array.isArray(d.pets)) throw 0; S = d; S.demo = false; save(); tab = "today"; toast("백업을 불러왔어요"); render(); } catch (_) { toast("댕냥차트 백업 파일이 아니에요"); } }; fr.readAsText(e.target.files[0]);
+      const fr = new FileReader(); fr.onload = () => { try { const d = JSON.parse(fr.result); if (d.v !== 1 || !Array.isArray(d.pets)) throw 0; S = d; S.demo = false; save(); tab = "today"; toast("백업을 불러왔어요"); render(); } catch (_) { toast("오래곁에 백업 파일이 아니에요"); } }; fr.readAsText(e.target.files[0]);
     }
   });
   document.addEventListener("submit", (e) => {
