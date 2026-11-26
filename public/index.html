@@ -34,5 +34,6 @@
 <div class="toast" id="toast" hidden></div>
 <script src="/app.js"></script>
 <script>if('serviceWorker' in navigator){addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{}))}</script>
+<script>/* 방문·설치 수 세기: 무작위 번호만 보냄(개인정보 없음) */(function(){try{var k='orae-anon',id=localStorage.getItem(k);if(!id){id=Array.from(crypto.getRandomValues(new Uint8Array(12)),function(b){return b.toString(36)}).join('').slice(0,24);if(id.length<12)id+='000000000000';localStorage.setItem(k,id)}var app=matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;var send=function(a){try{fetch('/api/hit',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id:id,app:a}),keepalive:true}).catch(function(){})}catch(e){}};send(app);addEventListener('appinstalled',function(){send(true)})}catch(e){}})();</script>
 </body>
 </html>
