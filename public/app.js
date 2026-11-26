@@ -159,7 +159,7 @@
   function petForm(p) {
     p = p || { species: "dog" };
     return `<form class="form card" id="petform">
-      ${p.id ? `<div class="photoset">${photoBox(p, "sm")}<div class="r"><span class="note" style="margin:0">사진을 누르면 앨범에서 고를 수 있어요. 사진은 이 휴대폰에만 저장돼요.</span>${p.photo ? `<button class="iconbtn" data-act="photo-del" data-pid="${p.id}" type="button">사진 빼기</button>` : ""}</div></div>` : ""}
+      ${p.id ? `<div class="photoset">${photoBox(p, "sm")}<div class="r"><span class="note" style="margin:0">사진을 누르면 앨범에서 고를 수 있어요. 사진은 이 휴대폰에만 저장돼요.</span>${p.photo ? `<button class="iconbtn" data-act="photo-fit" data-pid="${p.id}" type="button">위치 맞추기</button><button class="iconbtn" data-act="photo-del" data-pid="${p.id}" type="button">사진 빼기</button>` : ""}</div></div>` : ""}
       <label>이름<input id="f-name" required maxlength="20" value="${esc(p.name)}" placeholder="예: 보리" autocomplete="off"></label>
       <div class="r" role="radiogroup" aria-label="종류"><label style="display:flex;gap:6px;align-items:center;color:var(--ink)"><input type="radio" name="sp" value="dog" ${p.species !== "cat" ? "checked" : ""}> 강아지</label>
       <label style="display:flex;gap:6px;align-items:center;color:var(--ink)"><input type="radio" name="sp" value="cat" ${p.species === "cat" ? "checked" : ""}> 고양이</label></div>
@@ -674,6 +674,7 @@
       case "export": download("오래곁에-백업-" + iso(now()) + ".json", JSON.stringify(S)); toast("백업 파일을 저장했어요"); return;
       case "wipe": if (!S.confirmWipe) { S.confirmWipe = true; render(); return; } S = blank(); save(); tab = "today"; editing = null; toast("모든 기록을 지웠어요"); render(); return;
       case "photo": photoPid = d.pid; $("#photofile").value = ""; $("#photofile").click(); return;
+      case "photo-fit": { const q = S.pets.find((x) => x.id === d.pid); if (q && q.photo) openCrop(q.photo, q.id, false); return; }
       case "photo-del": { const q = S.pets.find((x) => x.id === d.pid); if (q) { delete q.photo; save(); toast("사진을 뺐어요"); render(); } return; }
       case "image": shareSummaryImage(); return;
       case "install": if (installEvt) { const ev = installEvt; ev.prompt(); ev.userChoice.then((c) => { if (c && c.outcome === "accepted") { installEvt = null; toast("홈 화면에 설치했어요"); } render(); }, () => {}); } return;
@@ -688,18 +689,56 @@
         if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(() => toast("복사했어요. 카톡이나 문자에 붙여 넣으세요"), () => { sel(); toast("내용을 선택해 두었어요. 복사를 눌러 주세요"); }); else sel(); return; }
     }
   });
-  // 사진: 가로 360 × 세로 450 으로 잘라 줄여서 이 휴대폰에만 저장
+  // 사진: 고른 뒤 손가락으로 위치·크기를 맞추는 화면을 띄우고, 오늘 화면 큰 사진 비율(16:10)로 잘라 이 휴대폰에만 저장
+  // 저장 값은 예전과 같은 data URL 한 개(p.photo). 예전 세로 사진도 그대로 보이고, '위치 맞추기'로 다시 맞출 수 있음
   let photoPid = null;
-  function readPhoto(file) {
-    return new Promise((res, rej) => { const url = URL.createObjectURL(file), img = new Image();
-      img.onload = () => { const W = 360, H = 450, r = Math.max(W / img.naturalWidth, H / img.naturalHeight), sw = W / r, sh = H / r, c = document.createElement("canvas"); c.width = W; c.height = H;
-        c.getContext("2d").drawImage(img, (img.naturalWidth - sw) / 2, (img.naturalHeight - sh) / 2, sw, sh, 0, 0, W, H); URL.revokeObjectURL(url); res(c.toDataURL("image/jpeg", 0.82)); };
-      img.onerror = () => { URL.revokeObjectURL(url); rej(); }; img.src = url; });
+  const CROP_W = 800, CROP_H = 500;
+  function loadImg(src) { return new Promise((res, rej) => { const img = new Image(); img.onload = () => res(img); img.onerror = rej; img.src = src; }); }
+  function openCrop(src, pid, revoke) {
+    const q = S.pets.find((x) => x.id === pid) || P();
+    loadImg(src).then((img) => {
+      const ov = document.createElement("div"); ov.className = "overlay crop"; document.body.appendChild(ov);
+      ov.innerHTML = `<div class="ovin"><div class="idtop" style="border:0;padding:0 0 8px"><span>${esc(q.name)} 사진 맞추기</span><button class="iconbtn" data-ov="close" type="button">취소</button></div>
+        <p class="ovhelp">사진을 끌어서 옮기고, 두 손가락이나 아래 막대로 크기를 맞춰 주세요. 얼굴이 동그라미 안에 오면 작은 사진에도 잘 나와요.</p>
+        <div class="cframe" aria-label="사진 위치 맞추기"><img alt="" draggable="false"><i class="cguide" aria-hidden="true"></i><span class="cname" aria-hidden="true">${esc(q.name)}</span></div>
+        <label class="czoom"><span>작게</span><input type="range" min="1" max="4" step="0.01" value="1" aria-label="사진 크기"><span>크게</span></label>
+        <div class="lock"><button class="btn" data-ov="save" type="button">이대로 저장</button><button class="btn ghost" data-ov="repick" type="button">다른 사진 고르기</button></div></div>`;
+      const fr = ov.querySelector(".cframe"), im = fr.querySelector("img"), rg = ov.querySelector("input[type=range]");
+      im.src = img.src;
+      const iw = img.naturalWidth, ih = img.naturalHeight;
+      let W = 0, H = 0, s0 = 1, z = 1, ox = 0, oy = 0;
+      const dims = () => { W = fr.clientWidth; H = fr.clientHeight; s0 = Math.max(W / iw, H / ih); };
+      const clamp = () => { const dw = iw * s0 * z, dh = ih * s0 * z, mx = (dw - W) / 2, my = (dh - H) / 2; ox = Math.max(-mx, Math.min(mx, ox)); oy = Math.max(-my, Math.min(my, oy)); };
+      const draw = () => { clamp(); const dw = iw * s0 * z, dh = ih * s0 * z; im.style.width = dw + "px"; im.style.height = dh + "px"; im.style.left = W / 2 - dw / 2 + ox + "px"; im.style.top = H / 2 - dh / 2 + oy + "px"; rg.value = z; };
+      const zoomTo = (nz) => { nz = Math.max(1, Math.min(4, nz)); ox *= nz / z; oy *= nz / z; z = nz; draw(); };
+      dims(); oy = Math.min(0, (ih * s0 - H) / 2 * 0.4); draw(); // 세로 사진은 얼굴이 위쪽에 있는 경우가 많아 조금 위를 보여 줌
+      addEventListener("resize", () => { const r = z; dims(); z = r; draw(); });
+      const pts = new Map(); let last = null;
+      const gap = () => { const [a, b] = [...pts.values()]; return Math.hypot(a.x - b.x, a.y - b.y); };
+      fr.addEventListener("pointerdown", (e) => { e.preventDefault(); fr.setPointerCapture(e.pointerId); pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); last = pts.size === 2 ? gap() : null; });
+      fr.addEventListener("pointermove", (e) => { if (!pts.has(e.pointerId)) return; const p0 = pts.get(e.pointerId), p1 = { x: e.clientX, y: e.clientY }; pts.set(e.pointerId, p1);
+        if (pts.size === 1) { ox += p1.x - p0.x; oy += p1.y - p0.y; draw(); }
+        else if (pts.size === 2) { const g = gap(); if (last) zoomTo(z * g / last); last = g; } });
+      const up = (e) => { pts.delete(e.pointerId); last = pts.size === 2 ? gap() : null; };
+      fr.addEventListener("pointerup", up); fr.addEventListener("pointercancel", up);
+      fr.addEventListener("wheel", (e) => { e.preventDefault(); zoomTo(z * (e.deltaY < 0 ? 1.08 : 1 / 1.08)); }, { passive: false });
+      rg.addEventListener("input", () => zoomTo(+rg.value));
+      const close = () => { ov.remove(); if (revoke) URL.revokeObjectURL(src); };
+      ov.addEventListener("click", (e) => { const b = e.target.closest("[data-ov]"); if (!b) return; const a = b.dataset.ov;
+        if (a === "close") close();
+        if (a === "repick") { close(); photoPid = q.id; $("#photofile").value = ""; $("#photofile").click(); }
+        if (a === "save") {
+          const dw = iw * s0 * z, dh = ih * s0 * z, L = W / 2 - dw / 2 + ox, T = H / 2 - dh / 2 + oy;
+          const c = document.createElement("canvas"); c.width = CROP_W; c.height = CROP_H;
+          c.getContext("2d").drawImage(img, (-L / dw) * iw, (-T / dh) * ih, (W / dw) * iw, (H / dh) * ih, 0, 0, CROP_W, CROP_H);
+          const had = !!q.photo; q.photo = c.toDataURL("image/jpeg", 0.85); close(); save(); toast(q.name + " 사진을 " + (had ? "바꿨어요" : "넣었어요")); render();
+        } });
+    }, () => { if (revoke) URL.revokeObjectURL(src); toast("이 사진은 열 수 없어요. 다른 사진을 골라 주세요"); });
   }
   document.addEventListener("change", (e) => {
     if (e.target.id === "photofile" && e.target.files[0]) {
       const q = S.pets.find((x) => x.id === photoPid) || P();
-      readPhoto(e.target.files[0]).then((u) => { q.photo = u; save(); toast(q.name + " 사진을 넣었어요"); render(); }, () => toast("이 사진은 열 수 없어요. 다른 사진을 골라 주세요"));
+      openCrop(URL.createObjectURL(e.target.files[0]), q.id, true);
       return;
     }
     if (e.target.id === "fixat") { const l = S.logs.find((x) => x.id === fixId), t = new Date(e.target.value).getTime(); if (l && !isNaN(t)) { l.t = Math.min(t, now()); save(); toast(label(P(), l.k) + " " + (sod(l.t) < sod(now()) ? md(l.t) + " " : "") + hm(l.t) + "으로 고쳤어요"); render(); } return; }
