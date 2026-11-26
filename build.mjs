@@ -1,4 +1,4 @@
-// 댕냥차트 빌드: public/ 을 dist/ 로 복사하고 서비스워커 캐시 버전을 갱신 (외부 패키지 없음)
+// 오래곁에 빌드: public/ 을 dist/ 로 복사하고 서비스워커 캐시 버전을 갱신 (외부 패키지 없음)
 import { cpSync, rmSync, readFileSync, writeFileSync } from "node:fs";
 rmSync("dist", { recursive: true, force: true });
 cpSync("public", "dist", { recursive: true });

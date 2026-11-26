@@ -1,6 +1,6 @@
 // 오프라인에서도 열리도록 앱 파일을 저장. 배포 때마다 __BUILD__ 가 바뀌어 새 버전을 받음.
-const CACHE = "dangnyang-__BUILD__";
-const FILES = ["/", "/index.html", "/app.js", "/style.css", "/manifest.webmanifest", "/icon.svg", "/icon-192.png", "/icon-512.png"];
+const CACHE = "oraegyeote-__BUILD__";
+const FILES = ["/", "/index.html", "/app.js", "/style.css", "/manifest.webmanifest", "/icon.svg", "/icon-192.png", "/icon-512.png", "/apple-touch-icon.png"];
 self.addEventListener("install", (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES)).then(() => self.skipWaiting())); });
 self.addEventListener("activate", (e) => { e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim())); });
 self.addEventListener("fetch", (e) => {
