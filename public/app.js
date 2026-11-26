@@ -206,7 +206,6 @@
     const yday = recent.filter((l) => l.t < t0);
     return `${house}
     <section><h2><span><span class="en">TODAY</span>오늘 기록</span><span class="pill">챙길 것 ${doneN} / ${ck.length}</span></h2>
-    <div class="prog" style="grid-template-columns:repeat(${ck.length},1fr)" aria-hidden="true">${ck.map(([k]) => `<i class="${doneToday(p, k) ? "f" : ""}"></i>`).join("")}</div>
     ${fixbar}${segBar}
     <div class="grid">${cur.list.map(btn).join("")}${cur.add ? addBtn : ""}</div>${pk}</section>
     <section><h2><span><span class="en">LOG</span>오늘 기록한 것</span><span class="pill">${today.length}건</span></h2>
@@ -227,11 +226,11 @@
     // 최근 4주 사이 줄었으면 그 구간을 붉게
     const rec = ws.filter((w) => w.t >= last.t - 28 * DAY), drop = rec.length > 1 && (rec[rec.length - 1].kg - rec[0].kg) / rec[0].kg <= -0.02;
     return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="체중 변화 그래프">
-      ${ticks.map((v) => `<line x1="${pd.l}" x2="${W - pd.r}" y1="${Y(v)}" y2="${Y(v)}" stroke="#E1E9E7"/><text x="${pd.l - 6}" y="${Y(v) + 4}" text-anchor="end" font-size="10" fill="#6A807B" font-family="Noto Sans KR,sans-serif">${unit ? Math.round(v) : v.toFixed(1)}</text>`).join("")}
-      ${drop && !unit ? `<rect x="${X(rec[0].t)}" y="${pd.t}" width="${Math.max(4, X(last.t) - X(rec[0].t))}" height="${H - pd.t - pd.b}" fill="#B4432F" fill-opacity=".08"/><text x="${X(last.t)}" y="${pd.t - 5}" text-anchor="end" font-size="10" fill="#B4432F">최근 4주 줄어듦</text>` : ""}
-      <polyline points="${pts}" fill="none" stroke="#0F5C55" stroke-width="2" stroke-linejoin="round"/>
-      ${ws.map((w, i) => { const e = i === ws.length - 1, c = e ? "#B4432F" : "#0F5C55"; return `<rect x="${X(w.t) - 3}" y="${Y(w.kg) - 3}" width="6" height="6" fill="${e ? c : "#fff"}" stroke="${c}" stroke-width="1.5"/>`; }).join("")}
-      <text x="${X(first.t)}" y="${H - 8}" font-size="10" fill="#6A807B" font-family="Noto Sans KR,sans-serif">${md(first.t)}</text><text x="${X(last.t)}" y="${H - 8}" text-anchor="end" font-size="10" fill="#6A807B" font-family="Noto Sans KR,sans-serif">${md(last.t)}</text></svg>`;
+      ${ticks.map((v) => `<line x1="${pd.l}" x2="${W - pd.r}" y1="${Y(v)}" y2="${Y(v)}" stroke="#E3D9C6"/><text x="${pd.l - 6}" y="${Y(v) + 4}" text-anchor="end" font-size="10" fill="#7F7466" font-family="Noto Sans KR,sans-serif">${unit ? Math.round(v) : v.toFixed(1)}</text>`).join("")}
+      ${drop && !unit ? `<rect x="${X(rec[0].t)}" y="${pd.t}" width="${Math.max(4, X(last.t) - X(rec[0].t))}" height="${H - pd.t - pd.b}" fill="#A2452B" fill-opacity=".08"/><text x="${X(last.t)}" y="${pd.t - 5}" text-anchor="end" font-size="10" fill="#A2452B">최근 4주 줄어듦</text>` : ""}
+      <polyline points="${pts}" fill="none" stroke="#4F6B4A" stroke-width="2" stroke-linejoin="round"/>
+      ${ws.map((w, i) => { const e = i === ws.length - 1, c = e ? "#A2452B" : "#4F6B4A"; return `<rect x="${X(w.t) - 3}" y="${Y(w.kg) - 3}" width="6" height="6" fill="${e ? c : "#fff"}" stroke="${c}" stroke-width="1.5"/>`; }).join("")}
+      <text x="${X(first.t)}" y="${H - 8}" font-size="10" fill="#7F7466" font-family="Noto Sans KR,sans-serif">${md(first.t)}</text><text x="${X(last.t)}" y="${H - 8}" text-anchor="end" font-size="10" fill="#7F7466" font-family="Noto Sans KR,sans-serif">${md(last.t)}</text></svg>`;
   }
   function vWeight() {
     const p = P(), all = S.weights.filter((w) => w.pid === p.id).sort((a, b) => a.t - b.t), ws = all.filter((w) => w.t >= now() - 183 * DAY);
@@ -373,7 +372,7 @@
     const D = summaryData(P()), { p, from, N, rows, notes, sch, ws } = D;
     try { if (document.fonts && document.fonts.ready) await document.fonts.ready; } catch (_) {}
     const W = 1080, PAD = 64, LW = 300, F = '"Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",sans-serif';
-    const C = { bg: "#FFFFFF", ink: "#0F5C55", muted: "#6A807B", rule: "#E1E9E7", accent: "#0F5C55", crit: "#B4432F", soft: "#E7F3F0" };
+    const C = { bg: "#FBF8F1", ink: "#2F2A24", muted: "#7F7466", rule: "#E3D9C6", accent: "#4F6B4A", crit: "#A2452B", soft: "#E9EEE3" };
     const cv = document.createElement("canvas"); cv.width = W; cv.height = 6000; const x = cv.getContext("2d");
     x.fillStyle = C.bg; x.fillRect(0, 0, W, cv.height); x.textBaseline = "alphabetic";
     const font = (sz, wt) => (x.font = `${wt || 400} ${sz}px ${F}`);
@@ -501,10 +500,18 @@
     const mrow = ml ? `<dt>약 남음</dt><dd${ml.days <= 7 ? ' class="dn"' : ""}>${ml.days}일분 (${md(ml.end)}경까지)</dd>` : "";
     const crow = p.clinic || p.cphone ? `<dt>병원</dt><dd>${esc(p.clinic || "")}${p.cphone ? ` <a class="tel" href="${telHref(p.cphone)}">전화</a>` : ""}</dd>` : "";
     const wrow = w ? `<dt>체중</dt><dd>${w.kg.toFixed(2)}kg ${Math.abs(w.d) >= 0.01 ? `<span class="${w.pct <= -3 ? "dn" : ""}" style="font-size:11.5px">${w.d < 0 ? "▼" : "▲"}${Math.abs(w.d).toFixed(2)}</span>` : ""}</dd>` : "";
-    return `<div class="idcard"><div class="idtop"><span>진료기록부 ${chartNo(p)}</span><span>${ymd(N)} (${wd(N)})</span></div>
-      <div class="idbody">${photoBox(p)}<div><h1 class="name"><b>${esc(p.name)}</b><span>${esc(info(p) || (p.species === "cat" ? "고양이" : "강아지"))}</span></h1>${careOf(p).length ? `<div>${careOf(p).map((k) => `<span class="ctag c-${k}">${esc(CARE[k].label.replace(/\(.*\)/, ""))}</span>`).join("")}</div>` : ""}
-      <dl class="kv">${kv.map(([a, b]) => `<dt>${a}</dt><dd>${esc(b)}</dd>`).join("")}${mrow}${wrow}${p.allergy && p.allergy !== "없음" ? `<dt>알레르기</dt><dd>${esc(p.allergy)}</dd>` : ""}${crow}</dl></div></div>
-      ${hasMeds(p) ? '<span class="stamp">투약<br>관리중</span>' : ""}
+    const careL = careOf(p).map((k) => CARE[k].label.replace(/\(.*\)/, ""));
+    // 오늘 챙길 것 메모지: 안 한 항목은 눌러서 바로 기록
+    const t0 = sod(N), items = checks(p).map(([k, lab]) => {
+      const done = doneToday(p, k), at = done ? (k === "resp" ? S.resp.filter((r) => r.pid === p.id && r.t >= t0).pop() : S.logs.filter((l) => l.pid === p.id && l.k === k && l.t >= t0).sort((a, b) => b.t - a.t)[0]) : null;
+      const val = at ? (k === "resp" ? " " + at.bpm + "회/분" : valTxt(at).replace(/^ · .*/, "")) : "";
+      const attr = k === "resp" ? 'data-act="resp"' : `data-log="${k}"`;
+      return done ? `<li class="ok"><i aria-hidden="true">✓</i><span>${esc(lab + val)}</span><small>${hm(at.t)}</small></li>` : `<li><button type="button" ${attr}><i aria-hidden="true"></i><span>${esc(lab)}</span><small>누르면 기록</small></button></li>`;
+    }).join("");
+    return `<div class="hero"><button type="button" class="heroimg${p.photo ? " has" : ""}" data-act="photo" data-pid="${p.id}" aria-label="${esc(p.name)} 사진 ${p.photo ? "바꾸기" : "넣기"}"${bg(p)}>${p.photo ? "" : `<span class="noimg">${CAM}<span>사진을 넣으면 여기에 크게 보여요</span></span>`}</button>
+      <div class="who"><h1>${esc(p.name)}</h1><span>${esc([age(p), ...careL].filter(Boolean).join(" · ") || (p.species === "cat" ? "고양이" : "강아지"))}</span></div></div>
+      ${items ? `<div class="memo"><div class="hand">오늘 ${esc(p.name)} 챙길 것</div><ul>${items}</ul></div>` : ""}
+      <div class="facts"><dl class="kv">${kv.map(([a, b]) => `<dt>${a}</dt><dd>${esc(b)}</dd>`).join("")}${mrow}${wrow}${p.allergy && p.allergy !== "없음" ? `<dt>알레르기</dt><dd>${esc(p.allergy)}</dd>` : ""}${crow}</dl>
       ${nx ? `<div class="alertline${nx.left > 7 ? " calm" : ""}"><i>●</i><span>다음: ${esc(nx.name)}</span><span class="d">${ddText(nx)}</span></div>` : '<div class="alertline calm"><i>●</i><span>일정 탭에서 접종·검진 일정을 넣어 두세요</span></div>'}</div>`;
   }
 
@@ -574,7 +581,7 @@
     if (d.act !== "wipe" && S.confirmWipe) { S.confirmWipe = false; }
     if (d.tab) { tab = d.tab; picker = null; editing = null; render(); scrollTo(0, 0); return; }
     if (d.pet) { S.cur = d.pet; if (tab === "settings") tab = "today"; picker = null; seg = "base"; fixId = null; save(); render(); return; }
-    if (d.log) { if (d.log === "walk" || d.log === "note" || d.log === "waterml" || FOODTYPE[d.log] || PICK.includes(btype(P(), d.log))) { picker = picker === d.log ? null : d.log; render(); if (picker === "note") { const t = $("#notetext"); t && t.focus(); } return; } addLog(d.log); return; }
+    if (d.log) { if (d.log === "walk" || d.log === "note" || d.log === "waterml" || FOODTYPE[d.log] || PICK.includes(btype(P(), d.log))) { picker = picker === d.log ? null : d.log; render(); if (picker && b.closest(".memo")) { const pe = document.querySelector(".picker"); pe && pe.scrollIntoView({ block: "center", behavior: "smooth" }); } if (picker === "note") { const t = $("#notetext"); t && t.focus(); } return; } addLog(d.log); return; }
     if (d.dose !== undefined && picker) { addLog(picker, { u: +d.dose }); return; }
     if (d.walk) { addLog("walk", { min: +d.walk }); return; }
     if (d.ml) { addLog("waterml", { ml: +d.ml }); return; }

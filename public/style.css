@@ -1,8 +1,8 @@
-/* 오래곁에 시안 1: 흰 바탕 + 짙은 청록 하나, 둥근 카드, 질병별 칸. 한 가지 밝은 모습으로 고정 */
+/* 오래곁에 '냉장고 메모': 귀리색 바탕, 큰 사진 위 메모지, 올리브 초록 하나. 상자 대신 줄, 둥글기는 작게 */
 :root{
-  --paper:#F7F9F8; --grid:#EDF2F1; --surface:#FFFFFF; --ink:#15302C; --ink2:#6A807B; --soft:#E7F3F0; --line:#E1E9E7;
-  --acc:#0F5C55; --acc2:#3B827A; --red:#B4432F; --red-soft:#FBECE8; --ok:#0F5C55; --ok-soft:#E7F3F0; --warn:#9A5B00;
-  --r:14px;
+  --paper:#F1ECE3; --grid:#E8E0D3; --surface:#FBF8F1; --ink:#2F2A24; --ink2:#7F7466; --soft:#E9EEE3; --line:#E3D9C6;
+  --acc:#4F6B4A; --acc2:#6E8A68; --red:#A2452B; --red-soft:#F6E6DF; --ok:#4F6B4A; --ok-soft:#E9EEE3; --warn:#8A5A12;
+--r:6px;
   --f-body:"Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
   --f-num:"Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
   color-scheme:light;
@@ -326,3 +326,64 @@ a.tel{border:1px solid var(--line);border-radius:999px;padding:1px 8px;color:var
 .fixbar button.x{margin-left:auto;border:0;background:none;color:var(--ink2)}
 .fixbar input{font:inherit;font-size:13px;padding:5px 8px;border:1px solid var(--line);border-radius:8px}
 .minihead .mini{width:44px;height:44px}
+
+/* ===== 냉장고 메모 ===== */
+.logo{color:var(--ink);font-weight:700}
+.iconbtn{border-color:var(--line);background:transparent}
+.demo{background:var(--surface);border:1px dashed #CDBFA8}
+.pets button{background:transparent;border:1px solid var(--line);color:var(--ink2)}
+.pets button[aria-pressed="true"]{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+.mini{background-color:#D9CDBA;color:#5E5444}
+.pets button[aria-pressed="true"] .mini{background-color:#5E5444;color:var(--surface)}
+.hero{position:relative;margin-top:10px}
+.heroimg{display:block;width:100%;height:210px;border:0;border-radius:6px;background:#D9CDBA center 30%/cover no-repeat;color:#7A6A55;padding:0;position:relative}
+.heroimg.has::after{content:"";position:absolute;inset:0;border-radius:6px;background:linear-gradient(transparent 55%,rgba(0,0,0,.35))}
+.heroimg .noimg{position:absolute;inset:0 0 40px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;font-size:12.5px}
+.heroimg .noimg svg{width:28px;height:28px}
+.hero .who{position:absolute;left:14px;bottom:30px;color:#fff;text-shadow:0 1px 6px rgba(0,0,0,.35);pointer-events:none;z-index:1}
+.hero .who h1{margin:0;font-size:27px;line-height:1.1;font-weight:700}
+.hero .who span{font-size:13.5px}
+.memo{position:relative;margin:-18px 10px 0;background:#FFFDF7;padding:10px 14px 10px;border-radius:2px;box-shadow:0 2px 0 #E3D9C6,0 6px 14px rgba(60,40,10,.06);transform:rotate(-.5deg);z-index:2}
+.memo .hand{font:30px/1 "Nanum Pen Script",cursive;color:#4A4034;padding:2px 0 4px}
+.memo ul{list-style:none;margin:0;padding:0;font-size:15px}
+.memo li>button,.memo li.ok{display:flex;gap:9px;align-items:center;width:100%;padding:6px 0;border:0;background:none;text-align:left;border-top:1px dashed #EAE1D1}
+.memo li:first-child>button,.memo li.ok:first-child{border-top:0}
+.memo i{width:18px;height:18px;border:1.5px solid #8A7D6B;border-radius:3px;flex:none;font-style:normal;font-size:12px;display:grid;place-items:center;color:#fff}
+.memo li.ok i{background:var(--acc);border-color:var(--acc)}
+.memo li.ok span{color:#9A8F80;text-decoration:line-through}
+.memo span{flex:1;min-width:0}
+.memo small{color:#9A8F80;font-size:12px;flex:none}
+.memo li>button small{color:var(--acc)}
+.facts{margin-top:14px;padding:4px 2px 0;border-top:1px solid var(--line)}
+.facts .kv{grid-template-columns:62px 1fr;font-size:13.5px;margin-top:6px}
+.facts .kv dt{font-size:12px}
+.facts .alertline{padding:8px 0 0;border-top:1px dashed var(--line);margin-top:6px}
+.alertline i{color:var(--acc)}
+.tag{background:var(--red-soft)}
+.ctag{border-radius:3px}
+h2{font-size:15px;font-weight:700}
+.cseg{gap:16px;border-bottom:1px solid var(--line);margin:2px 0 10px;padding:0 2px}
+.cseg button{background:none;border-radius:0;padding:0 0 8px;color:var(--ink2);font-weight:500;box-shadow:none!important;font-size:14.5px}
+.cseg button[aria-pressed="true"]{background:none;color:var(--ink);font-weight:700;box-shadow:inset 0 -2px 0 var(--acc)!important}
+.cseg button i{top:-1px;right:-8px;background:var(--red)}
+.qb{border:1px solid var(--line);border-radius:6px;background:var(--surface);min-height:58px;padding:10px 12px}
+.qb b{font-weight:500}
+.qb em{color:var(--ink2)}
+.qb.done{background:var(--soft);border-color:#CFD9C6}
+.qb.done em{color:var(--acc)}
+.qb.done::after{color:var(--acc)}
+.qb.sym b{color:var(--red)}
+.qb.sym.done{background:var(--red-soft);border-color:#EBCFC3}
+.list,.card,.sheet,.home .h,.minihead,.picker,.fixbar{border-radius:6px;border:1px solid var(--line)}
+.picker,.fixbar{background:#FFFDF7}
+.fixbar b{color:var(--acc)}
+.btn{border-radius:6px}
+.seg button{border-radius:6px;background:transparent;border:1px solid var(--line)}
+.seg button[aria-pressed="true"]{background:var(--ink);border-color:var(--ink)}
+.sheet h3{color:var(--acc)}
+nav.tabs{background:var(--surface)}
+nav.tabs button[aria-current="page"]{color:var(--acc)}
+.toast{border-radius:6px}
+.photo{background-color:#D9CDBA;color:#5E5444;border-radius:6px}
+.dday{border-radius:4px}
+.welcome h1{font-weight:700}
