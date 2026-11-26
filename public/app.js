@@ -61,6 +61,39 @@
   const fromIso = (s) => { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d).getTime(); };
   const sod = (t) => { const d = new Date(t); d.setHours(0, 0, 0, 0); return d.getTime(); };
   function toast(msg) { const el = $("#toast"); el.textContent = msg; el.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => (el.hidden = true), 2000); }
+  // ---------- 휴대폰·브라우저 환경 (기록 저장 형식과 무관) ----------
+  const UA = navigator.userAgent || "";
+  const IOS = /iPhone|iPad|iPod/.test(UA) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const ANDROID = /Android/i.test(UA);
+  const INAPP = /Instagram|FBAN|FBAV|KAKAOTALK|NAVER\(inapp|Line\/|DaumApps|BAND\//i.test(UA);
+  const INAPP_NAME = /Instagram/i.test(UA) ? "인스타그램" : /FBAN|FBAV/i.test(UA) ? "페이스북" : /KAKAOTALK/i.test(UA) ? "카카오톡" : /NAVER/i.test(UA) ? "네이버 앱" : "다른 앱";
+  const STANDALONE = (window.matchMedia && matchMedia("(display-mode: standalone)").matches) || navigator.standalone === true;
+  const lsGet = (k) => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+  const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
+  const APP_URL = location.origin + "/";
+  let installEvt = null, inappHide = false;
+  addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installEvt = e; if (typeof render === "function" && S) render(); });
+  addEventListener("appinstalled", () => { installEvt = null; lsSet("orae-install-hide", "1"); render(); });
+  // 인스타·카톡 안의 브라우저로 열렸을 때: 기록이 따로 저장되고 설치가 안 되므로 바깥 브라우저로 안내
+  function inappBar() {
+    if (!INAPP || inappHide) return "";
+    const kakao = /KAKAOTALK/i.test(UA), out = IOS ? "사파리" : "크롬";
+    const href = kakao ? "kakaotalk://web/openExternal?url=" + encodeURIComponent(APP_URL) : ANDROID ? "intent://" + location.host + "/#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=" + encodeURIComponent(APP_URL) + ";end" : "";
+    const how = IOS && !kakao ? `<span>오른쪽 위 <b>⋯</b> 버튼을 누르고 <b>'외부 브라우저에서 열기'</b>(또는 'Safari로 열기')를 골라 주세요.</span>` : "";
+    return `<div class="inapp" role="alert"><b>${INAPP_NAME} 안에서 열렸어요</b><span>여기서 한 기록은 사라질 수 있고, 홈 화면에 앱으로 설치할 수도 없어요. <b>${out}</b>에서 열어 주세요.</span>${how}
+      <div class="r">${href ? `<a class="btn" href="${href}">${out}에서 열기</a>` : ""}<button class="btn ghost" data-act="copy-url" type="button">주소 복사</button><button class="linkbtn" data-act="inapp-hide" type="button">그냥 둘러볼게요</button></div><small class="url">${esc(APP_URL)}</small></div>`;
+  }
+  // 홈 화면에 추가 안내. first=첫 화면용(아이폰은 등록 전에 설치하라고 안내)
+  function installCard(first, inSettings) {
+    if (STANDALONE || INAPP) return inSettings ? `<div class="card note" style="margin:0">${STANDALONE ? "홈 화면 앱으로 쓰고 있어요." : "사파리나 크롬에서 열면 홈 화면에 설치할 수 있어요."}</div>` : "";
+    if (!inSettings && lsGet("orae-install-hide")) return "";
+    let body;
+    if (IOS) body = `<p>사파리 아래쪽 <b>공유 버튼</b>(네모에 화살표) → <b>'홈 화면에 추가'</b>를 누르면 앱처럼 쓸 수 있어요.</p><p class="warn">아이폰은 사파리와 홈 화면 앱이 기록을 따로 보관해요. ${first ? "그래서 <b>먼저 홈 화면에 추가한 뒤, 홈 화면의 오래곁에에서 등록</b>해 주세요." : "이미 사파리에서 기록했다면 아래 <b>백업 파일 저장</b> → 홈 화면 앱의 설정에서 <b>백업 불러오기</b>로 옮겨 주세요."}</p>${first ? "" : `<div class="r"><button class="btn ghost" data-act="export" type="button">백업 파일 저장</button></div>`}`;
+    else if (installEvt) body = `<p>홈 화면에 설치하면 앱처럼 바로 열 수 있어요. 기록은 그대로 이어져요.</p><div class="r"><button class="btn" data-act="install" type="button">홈 화면에 설치</button></div>`;
+    else if (ANDROID) body = `<p>크롬 오른쪽 위 <b>⋮</b> → <b>'앱 설치'</b> 또는 <b>'홈 화면에 추가'</b>를 누르면 앱처럼 쓸 수 있어요.</p>`;
+    else body = `<p>휴대폰에서 열고 홈 화면에 추가하면 앱처럼 쓸 수 있어요. 아이폰은 사파리 공유 버튼 → '홈 화면에 추가', 안드로이드는 크롬 ⋮ → '앱 설치'.</p>`;
+    return `<div class="install${inSettings ? "" : " card"}">${inSettings ? "" : `<div class="ih"><b>${first && IOS ? "아이폰이라면 먼저 홈 화면에 추가해 주세요" : "홈 화면에 오래곁에 추가하기"}</b>${first ? "" : '<button class="x" data-act="install-hide" type="button" aria-label="이 안내 닫기">×</button>'}</div>`}${body}</div>`;
+  }
   const P = () => S.pets.find((p) => p.id === S.cur) || S.pets[0];
   const btns = (p) => { const base = BUTTONS[p.species] || BUTTONS.dog, c = (p.custom || []).map((x) => ({ k: x.k, label: x.label, type: x.type }));
     const cb = []; careOf(p).forEach((ck) => CARE[ck].btns.forEach((b) => { if (!base.some((x) => x.k === b.k) && !cb.some((x) => x.k === b.k)) cb.push(b); }));
@@ -149,9 +182,11 @@
   function vWelcome() {
     return `<div class="welcome"><h1>나이 들고 아픈 아이, 오래 곁에 있도록</h1>
     <p>약, 밥, 물, 잠잘 때 호흡수를 한 번 눌러 기록하고, 동물병원에서는 최근 변화를 한 장으로 보여 주세요. 심장병·신부전처럼 돌봄 중인 질병을 고르면 그에 맞는 기록 칸이 생겨요. 강아지와 고양이를 함께 등록할 수 있어요.</p>
+    <div class="tryit"><button class="btn ghost" data-act="demo" type="button">예시로 먼저 둘러보기</button><span class="note" style="margin:0">예시 아이 3마리의 기록을 볼 수 있어요. 언제든 지우고 내 아이를 등록할 수 있어요.</span></div>
+    ${IOS ? installCard(true) : ""}
+    <h2 class="regh">내 아이 등록하기</h2>
     ${petForm()}
-    <p class="note" style="margin-top:14px">먼저 둘러보고 싶으시면 <button class="iconbtn" data-act="demo" type="button">예시로 둘러보기</button></p>
-    <p class="note">기록은 이 휴대폰에만 저장돼요. 가족과 함께 쓰는 기능은 곧 추가돼요.</p></div>`;
+    <p class="note" style="margin-top:14px">기록은 이 휴대폰에만 저장돼요. 가족과 함께 쓰는 기능은 곧 추가돼요.</p></div>`;
   }
 
   // ---------- 화면: 오늘 ----------
@@ -210,7 +245,7 @@
     const fixbar = fl && now() - (fl.made || fl.t) < 15 * 60000 ? `<div class="fixbar" role="group" aria-label="기록 시각 고치기"><b>${esc(label(p, fl.k))} ${hm(fl.t)}에 기록했어요. 시각이 다르면 고쳐 주세요.</b>${[[30, "30분 전"], [60, "1시간 전"], [180, "3시간 전"]].map(([m, t]) => `<button type="button" data-fix="${m}">${t}</button>`).join("")}<input id="fixat" type="datetime-local" aria-label="직접 고르기" value="${dtl(fl.t)}" max="${dtl(N)}" min="${dtl(N - 7 * DAY)}"><button class="x" type="button" data-fix="close" aria-label="닫기">×</button></div>` : "";
     const row = (l) => `<div class="row${(btns(p).find((b) => b.k === l.k) || {}).type === "sym" ? " sym" : ""}"><span class="time">${hm(l.t)}</span><span class="what">${esc(label(p, l.k))}${esc(valTxt(l))}${l.text ? " · " + esc(l.text) : ""}</span><span class="who">${esc(l.by)}</span><button class="del" data-dellog="${l.id}" aria-label="이 기록 지우기" type="button">×</button></div>`;
     const yday = recent.filter((l) => l.t < t0);
-    return `${house}
+    return `${installCard(false)}${house}
     <section><h2><span><span class="en">TODAY</span>오늘 기록</span>${ck.length ? `<span class="pill">챙길 것 ${doneN} / ${ck.length}</span>` : ""}</h2>
     ${fixbar}${segBar}
     <div class="grid">${cur.list.map(btn).join("")}${cur.add ? addBtn : ""}</div>${pk}</section>
@@ -464,7 +499,9 @@
         ${Array.isArray(p.checks) ? '<button class="linkbtn" data-act="checks-auto" type="button" style="justify-self:start">자동으로 되돌리기 (아이 정보·질병에 맞춰 정함)</button>' : ""}`}</div></section>`; })()}
     <section><h2><span><span class="en">BACKUP</span>백업</span></h2><div class="card"><div class="r" style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost" data-act="export" type="button">백업 파일 저장</button><label class="btn ghost" style="display:inline-block">백업 불러오기<input id="importfile" type="file" accept="application/json" hidden></label></div>
       <div class="note">기록은 이 휴대폰 브라우저에만 있어요. 브라우저 기록을 지우면 사라지니 가끔 백업해 두세요.</div></div></section>
-    <section><h2><span><span class="en">INSTALL</span>앱 설치</span></h2><div class="card note" style="margin:0">아이폰: 사파리 아래 공유 버튼 → "홈 화면에 추가"<br>안드로이드: 크롬 오른쪽 위 ⋮ → "앱 설치" 또는 "홈 화면에 추가"</div></section>
+    <section><h2><span><span class="en">INSTALL</span>앱 설치</span></h2>${(STANDALONE || INAPP) ? installCard(false, true) : `<div class="card">${installCard(false, true)}</div>`}</section>
+    <section><h2><span><span class="en">FEEDBACK</span>의견 보내기</span><span class="pill">베타</span></h2><div class="card"><div class="note" style="margin:0 0 10px">불편한 점, 있었으면 하는 기록 칸, 틀린 글자 무엇이든 알려 주세요. 베타 기간에 받은 의견으로 앱을 고쳐요.</div>
+      <div class="r" style="display:flex;gap:8px;flex-wrap:wrap"><a class="btn" href="https://ig.me/m/oraegyeote" target="_blank" rel="noopener">인스타 DM 보내기</a><a class="btn ghost" href="https://www.instagram.com/oraegyeote/" target="_blank" rel="noopener">@oraegyeote 보기</a></div></div></section>
     <section><button class="btn ghost danger" data-act="wipe" type="button">${S.confirmWipe ? "정말 지울까요? 한 번 더 누르면 모두 지워져요" : "모든 기록 지우기"}</button></section>`;
   }
 
@@ -531,7 +568,7 @@
   function render() {
     const has = S.pets.length > 0;
     if (has && !S.pets.some((p) => p.id === S.cur)) S.cur = S.pets[0].id;
-    $("#banner").innerHTML = S.demo ? `<div class="demo"><span>예시 데이터를 보고 있어요.</span><button data-act="clear-demo" type="button">지우고 내 아이 등록하기</button></div>` : "";
+    $("#banner").innerHTML = inappBar() + (S.demo ? `<div class="demo"><span>예시 데이터를 보고 있어요.</span><button data-act="clear-demo" type="button">지우고 내 아이 등록하기</button></div>` : "");
     $("#tabs").hidden = !has;
     if (!has) { $("#pets").innerHTML = ""; $("#pethead").innerHTML = ""; $("#pethead").hidden = true; $("#view").innerHTML = vWelcome(); return; }
     $("#pets").innerHTML = S.pets.map((p) => `<button data-pet="${p.id}" aria-pressed="${p.id === S.cur && tab !== "settings"}" type="button">${mini(p)}${esc(p.name)}</button>`).join("") + `<button class="add" data-act="add-pet" type="button">+ 아이 추가</button>`;
@@ -625,6 +662,10 @@
       case "photo": photoPid = d.pid; $("#photofile").value = ""; $("#photofile").click(); return;
       case "photo-del": { const q = S.pets.find((x) => x.id === d.pid); if (q) { delete q.photo; save(); toast("사진을 뺐어요"); render(); } return; }
       case "image": shareSummaryImage(); return;
+      case "install": if (installEvt) { const ev = installEvt; ev.prompt(); ev.userChoice.then((c) => { if (c && c.outcome === "accepted") { installEvt = null; toast("홈 화면에 설치했어요"); } render(); }, () => {}); } return;
+      case "install-hide": lsSet("orae-install-hide", "1"); render(); return;
+      case "inapp-hide": inappHide = true; render(); return;
+      case "copy-url": if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(APP_URL).then(() => toast("주소를 복사했어요. " + (IOS ? "사파리" : "크롬") + " 주소창에 붙여 넣으세요"), () => toast("아래 주소를 길게 눌러 복사해 주세요")); else toast("아래 주소를 길게 눌러 복사해 주세요"); return;
       case "custom-add": tab = "settings"; editing = null; render(); setTimeout(() => { const el = $("#cname"); if (el) { el.scrollIntoView({ block: "center" }); el.focus(); } }, 50); return;
       case "done-cancel": doneSch = null; render(); return;
       case "ics-all": saveIcs(nextSchedules(P()), P()); return;
