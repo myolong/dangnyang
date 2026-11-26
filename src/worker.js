@@ -34,6 +34,11 @@ const page = (s) => `<!doctype html><html lang="ko"><head><meta charset="utf-8">
 
 export default {
   async fetch(req, env) {
+    try { return await handle(req, env); } catch (e) { return new Response("잠시 문제가 생겼어요: " + (e && e.message), { status: 500, headers: { "content-type": "text/plain; charset=utf-8" } }); }
+  },
+};
+
+async function handle(req, env) {
     const url = new URL(req.url);
     const stub = env.COUNTER.get(env.COUNTER.idFromName("main"));
     if (url.pathname === "/api/hit" && req.method === "POST") {
@@ -47,5 +52,4 @@ export default {
       return new Response(page(await stub.stats()), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } });
     }
     return env.ASSETS.fetch(req);
-  },
-};
+}
