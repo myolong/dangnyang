@@ -103,7 +103,13 @@
     return list.sort((a, b) => (last[b] || 0) - (last[a] || 0));
   }
   const logsOf = (p) => S.logs.filter((l) => l.pid === p.id);
+  // 오늘 챙길 것: 사용자가 끄면 없음, 직접 고르면 그 목록, 아니면 아이 정보로 자동
   function checks(p) {
+    if (p.memoOff) return [];
+    if (Array.isArray(p.checks)) return btns(p).filter((b) => p.checks.includes(b.k)).map((b) => [b.k, b.k === "pee" && p.species === "cat" ? "화장실 확인" : b.label]);
+    return autoChecks(p);
+  }
+  function autoChecks(p) {
     const c = p.species === "cat" ? [["breakfast", "아침밥"], ["dinner", "저녁밥"], ["pee", "화장실 확인"]] : [["breakfast", "아침밥"], ["dinner", "저녁밥"]];
     if (hasMeds(p)) p.species === "cat" ? c.unshift(["medAM", "약·보조제"]) : c.unshift(["medAM", "아침 약"], ["medPM", "저녁 약"]);
     careOf(p).forEach((k) => CARE[k].check.forEach((x) => { if (!c.some((y) => y[0] === x[0])) c.push(x); }));
@@ -164,7 +170,7 @@
     const rToday = respOf(p).filter((r) => r.t >= t0).pop();
     const btn = (b) => { if (b.type === "resp") return `<button class="qb${rToday ? " done" : ""}" data-act="resp" type="button"><b>${b.label}</b><em>${rToday ? ago(rToday.t) + " · " + rToday.bpm + "회/분" : "30초 세기"}</em></button>`; const l = lastOf(b.k); return `<button class="qb${b.type === "sym" ? " sym" : ""}${l && b.type !== "note" ? " done" : ""}" data-log="${b.k}" type="button"><b>${esc(b.label)}</b><em>${esc(sub(b, l))}</em></button>`; };
     const allMeal = (k, t) => `<button class="iconbtn" data-allmeal="${k}" type="button">모두 ${t} 줬어요</button>`;
-    const house = S.pets.length > 1 ? `<section><h2><span><span class="en">HOME</span>우리 집 오늘</span><span class="pill">${S.pets.length}마리</span></h2><div class="home">${S.pets.map((q) => { const pd = pending(q), lm = logsOf(q).filter((l) => (l.k === "breakfast" || l.k === "dinner") && l.t <= N).sort((a, b) => b.t - a.t)[0]; return `<div class="h">${mini(q)}<div><b>${esc(q.name)}</b><span class="${pd.length ? "todo" : "done"}">${pd.length ? pd.join(", ") + " 아직" : "오늘 챙길 것 다 했어요"}</span>${lm ? `<small class="ago">마지막 밥 ${ago(lm.t)}</small>` : ""}</div></div>`; }).join("")}
+    const house = S.pets.length > 1 ? `<section><h2><span><span class="en">HOME</span>우리 집 오늘</span><span class="pill">${S.pets.length}마리</span></h2><div class="home">${S.pets.map((q) => { const pd = pending(q), lm = logsOf(q).filter((l) => (l.k === "breakfast" || l.k === "dinner") && l.t <= N).sort((a, b) => b.t - a.t)[0]; return `<div class="h">${mini(q)}<div><b>${esc(q.name)}</b>${checks(q).length ? `<span class="${pd.length ? "todo" : "done"}">${pd.length ? pd.join(", ") + " 아직" : "오늘 챙길 것 다 했어요"}</span>` : ""}${lm ? `<small class="ago">마지막 밥 ${ago(lm.t)}</small>` : ""}</div></div>`; }).join("")}
       <div class="allrow">${allMeal("breakfast", "아침밥")}${allMeal("dinner", "저녁밥")}</div></div></section>` : "";
     let pk = "";
     if (picker === "walk") pk = `<div class="picker" role="group" aria-label="산책 시간"><span>몇 분 걸었나요?</span>${[10, 20, 30, 45, 60].map((m) => `<button data-walk="${m}" type="button">${m}분</button>`).join("")}</div>`;
@@ -205,7 +211,7 @@
     const row = (l) => `<div class="row${(btns(p).find((b) => b.k === l.k) || {}).type === "sym" ? " sym" : ""}"><span class="time">${hm(l.t)}</span><span class="what">${esc(label(p, l.k))}${esc(valTxt(l))}${l.text ? " · " + esc(l.text) : ""}</span><span class="who">${esc(l.by)}</span><button class="del" data-dellog="${l.id}" aria-label="이 기록 지우기" type="button">×</button></div>`;
     const yday = recent.filter((l) => l.t < t0);
     return `${house}
-    <section><h2><span><span class="en">TODAY</span>오늘 기록</span><span class="pill">챙길 것 ${doneN} / ${ck.length}</span></h2>
+    <section><h2><span><span class="en">TODAY</span>오늘 기록</span>${ck.length ? `<span class="pill">챙길 것 ${doneN} / ${ck.length}</span>` : ""}</h2>
     ${fixbar}${segBar}
     <div class="grid">${cur.list.map(btn).join("")}${cur.add ? addBtn : ""}</div>${pk}</section>
     <section><h2><span><span class="en">LOG</span>오늘 기록한 것</span><span class="pill">${today.length}건</span></h2>
@@ -450,6 +456,12 @@
       <form class="addw foodadd" data-key="foods" style="margin-top:8px"><label class="sr" for="add-foods">사료 이름 추가</label><input id="add-foods" maxlength="30" placeholder="사료 이름 (예: 힐스 k/d)" autocomplete="off"><button class="btn ghost" type="submit">추가</button></form>
       <div class="note" style="margin:12px 0 6px">간식</div><div style="display:flex;gap:6px;flex-wrap:wrap">${(p.snacks || []).map((f) => chip("snacks", f)).join("") || '<span class="note" style="margin:0">아직 없어요. 아래에서 추가하거나, 간식 버튼을 누를 때 입력해도 쌓여요.</span>'}</div>
       <form class="addw foodadd" data-key="snacks" style="margin-top:8px"><label class="sr" for="add-snacks">간식 이름 추가</label><input id="add-snacks" maxlength="30" placeholder="간식 이름 (예: 츄르)" autocomplete="off"><button class="btn ghost" type="submit">추가</button></form></div></section>`; })()}
+    ${(() => { const p = P(), on = new Set(checks(p).map((c) => c[0])), cand = btns(p).filter((b) => !["sym", "note"].includes(b.type));
+      return `<section><h2><span><span class="en">CHECK</span>${esc(p.name)} 오늘 챙길 것</span><span class="pill">${p.memoOff ? "꺼짐" : Array.isArray(p.checks) ? "직접 고름" : "자동"}</span></h2><div class="card form">
+        <label class="sw"><input type="checkbox" data-memo="on" ${p.memoOff ? "" : "checked"}> 오늘 화면에 '챙길 것' 메모지 보이기</label>
+        ${p.memoOff ? "" : `<div class="note" style="margin:0">매일 꼭 해야 하는 것만 골라 두세요. 메모지와 '우리 집 오늘'에 아직 안 한 것으로 나와요.</div>
+        <div class="chkpick">${cand.map((b) => `<label><input type="checkbox" data-chk="${b.k}" ${on.has(b.k) ? "checked" : ""}> ${esc(b.k === "pee" && p.species === "cat" ? "화장실 확인" : b.label)}</label>`).join("")}</div>
+        ${Array.isArray(p.checks) ? '<button class="linkbtn" data-act="checks-auto" type="button" style="justify-self:start">자동으로 되돌리기 (아이 정보·질병에 맞춰 정함)</button>' : ""}`}</div></section>`; })()}
     <section><h2><span><span class="en">BACKUP</span>백업</span></h2><div class="card"><div class="r" style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost" data-act="export" type="button">백업 파일 저장</button><label class="btn ghost" style="display:inline-block">백업 불러오기<input id="importfile" type="file" accept="application/json" hidden></label></div>
       <div class="note">기록은 이 휴대폰 브라우저에만 있어요. 브라우저 기록을 지우면 사라지니 가끔 백업해 두세요.</div></div></section>
     <section><h2><span><span class="en">INSTALL</span>앱 설치</span></h2><div class="card note" style="margin:0">아이폰: 사파리 아래 공유 버튼 → "홈 화면에 추가"<br>안드로이드: 크롬 오른쪽 위 ⋮ → "앱 설치" 또는 "홈 화면에 추가"</div></section>
@@ -607,6 +619,7 @@
       case "close-picker": picker = null; render(); return;
       case "demo": S = demo(); save(); tab = "today"; render(); return;
       case "clear-demo": S = blank(); save(); tab = "today"; render(); return;
+      case "checks-auto": { const p = P(); delete p.checks; save(); toast("자동으로 되돌렸어요"); render(); return; }
       case "export": download("오래곁에-백업-" + iso(now()) + ".json", JSON.stringify(S)); toast("백업 파일을 저장했어요"); return;
       case "wipe": if (!S.confirmWipe) { S.confirmWipe = true; render(); return; } S = blank(); save(); tab = "today"; editing = null; toast("모든 기록을 지웠어요"); render(); return;
       case "photo": photoPid = d.pid; $("#photofile").value = ""; $("#photofile").click(); return;
@@ -635,6 +648,8 @@
       return;
     }
     if (e.target.id === "fixat") { const l = S.logs.find((x) => x.id === fixId), t = new Date(e.target.value).getTime(); if (l && !isNaN(t)) { l.t = Math.min(t, now()); save(); toast(label(P(), l.k) + " " + (sod(l.t) < sod(now()) ? md(l.t) + " " : "") + hm(l.t) + "으로 고쳤어요"); render(); } return; }
+    if (e.target.dataset && e.target.dataset.memo) { const p = P(); p.memoOff = !e.target.checked; save(); toast(p.memoOff ? "오늘 챙길 것을 껐어요" : "오늘 챙길 것을 켰어요"); render(); return; }
+    if (e.target.dataset && e.target.dataset.chk) { const p = P(), cur = checks(p).map((c) => c[0]), k = e.target.dataset.chk; p.checks = e.target.checked ? cur.concat(cur.includes(k) ? [] : [k]) : cur.filter((x) => x !== k); save(); render(); return; }
     if (e.target.id === "whenat") { when = e.target.value || 0; render(); return; }
     if (e.target.id === "me") { S.me = e.target.value; save(); toast(S.me + "(으)로 기록해요"); }
     if (e.target.id === "importfile" && e.target.files[0]) {
