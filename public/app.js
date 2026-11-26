@@ -176,8 +176,16 @@
       <label>다니는 병원<input id="f-clinic" maxlength="40" value="${esc(p.clinic)}" placeholder="예: 우리동네동물병원"></label>
       <div class="two"><label>병원 전화<input id="f-cphone" type="tel" maxlength="20" value="${esc(p.cphone)}" placeholder="예: 02-123-4567"></label>
       <label>진료 시간 메모<input id="f-chours" maxlength="40" value="${esc(p.chours)}" placeholder="예: 평일 9~20시, 일 휴무"></label></div>
+      ${p.id ? delPetBox(p) : ""}
       <div class="r"><button class="btn" type="submit">${p.id ? "저장" : "등록"}</button>${editing || S.pets.length ? '<button class="btn ghost" type="button" data-act="cancel-pet">취소</button>' : ""}</div>
     </form>`;
+  }
+  // 아이 지우기: 두 번 눌러야 지워짐. 그 아이의 기록도 함께 지움
+  let delPet = null;
+  const josa = (w, a, b) => { const c = String(w || "").charCodeAt(String(w || "").length - 1) - 0xac00; return w + (c >= 0 && c <= 11171 && c % 28 ? a : b); };
+  function delPetBox(p) {
+    const n = S.logs.filter((l) => l.pid === p.id).length + S.weights.filter((w) => w.pid === p.id).length + S.resp.filter((r) => r.pid === p.id).length + S.labs.filter((x) => x.pid === p.id).length + S.sch.filter((x) => x.pid === p.id).length;
+    return `<div class="delpet">${delPet === p.id ? `<b>${esc(josa(p.name, "과", "와"))} 기록 ${n}건을 모두 지울까요? 되돌릴 수 없어요.</b><span class="note" style="margin:0">혹시 몰라 걱정되면 먼저 설정의 '백업 파일 저장'을 눌러 두세요.</span><div class="r"><button class="btn danger" data-act="delpet-ok" data-pid="${p.id}" type="button">네, 지울게요</button><button class="btn ghost" data-act="delpet-no" type="button">그만두기</button></div>` : `<button class="linkbtn danger" data-act="delpet" data-pid="${p.id}" type="button">이 아이 지우기</button>`}</div>`;
   }
   function vWelcome() {
     return `<div class="welcome"><h1>나이 들고 아픈 아이, 오래 곁에 있도록</h1>
@@ -275,7 +283,7 @@
   }
   function vWeight() {
     const p = P(), all = S.weights.filter((w) => w.pid === p.id).sort((a, b) => a.t - b.t), ws = all.filter((w) => w.t >= now() - 183 * DAY);
-    const form = `<form class="addw" id="wform"><label for="wkg" style="position:absolute;left:-9999px">오늘 체중</label><input id="wkg" inputmode="decimal" placeholder="오늘 체중 kg (예: 3.55)" autocomplete="off"><button class="btn" type="submit">기록</button></form>`;
+    const form = `<form class="addw" id="wform"><label for="wkg" style="position:absolute;left:-9999px">오늘 체중</label><input id="wkg" inputmode="decimal" placeholder="체중 kg (예: 3.55)" autocomplete="off"><label class="wdate">잰 날<input id="wdate" type="date" value="${iso(now())}" max="${iso(now())}"></label><button class="btn" type="submit">기록</button></form><div class="note" style="margin:6px 0 0">병원 진료기록에 있는 예전 체중은 '잰 날'을 바꿔서 넣어 주세요.</div>`;
     const more = vResp(p) + vSeries(p, "glucose", "mg", "GLUCOSE", "혈당", "mg/dL") + vSeries(p, "qol", "score", "QOL", "오늘 상태 점수", "점") + (careOf(p).includes("kidney") || labsOf(p).length ? vLabs(p) : "");
     if (!all.length) return `<section><h2><span><span class="en">WEIGHT</span>${esc(p.name)} 체중</span></h2><div class="card"><div class="empty">아직 체중 기록이 없어요. 첫 체중을 넣어 주세요.</div>${form}</div></section>${more}`;
     const last = all[all.length - 1], first = ws[0] || last, pct = ((last.kg - first.kg) / first.kg) * 100;
@@ -571,7 +579,7 @@
     $("#banner").innerHTML = inappBar() + (S.demo ? `<div class="demo"><span>예시 데이터를 보고 있어요.</span><button data-act="clear-demo" type="button">지우고 내 아이 등록하기</button></div>` : "");
     $("#tabs").hidden = !has;
     if (!has) { $("#pets").innerHTML = ""; $("#pethead").innerHTML = ""; $("#pethead").hidden = true; $("#view").innerHTML = vWelcome(); return; }
-    $("#pets").innerHTML = S.pets.map((p) => `<button data-pet="${p.id}" aria-pressed="${p.id === S.cur && tab !== "settings"}" type="button">${mini(p)}${esc(p.name)}</button>`).join("") + `<button class="add" data-act="add-pet" type="button">+ 아이 추가</button>`;
+    $("#pets").innerHTML = S.pets.map((p) => `<button data-pet="${p.id}" aria-pressed="${p.id === S.cur && !(tab === "settings" && editing)}" type="button">${mini(p)}${esc(p.name)}</button>`).join("") + `<button class="add" data-act="add-pet" type="button">+ 아이 추가</button>`;
     const p = P();
     $("#pethead").innerHTML = tab === "settings" ? "" : tab === "today" ? idCard(p) : `<div class="minihead">${mini(p)}<div><b>${esc(p.name)}</b><small>${esc(info(p))}</small></div></div>`;
     $("#pethead").hidden = tab === "settings";
@@ -629,7 +637,7 @@
     const d = b.dataset;
     if (d.act !== "wipe" && S.confirmWipe) { S.confirmWipe = false; }
     if (d.tab) { tab = d.tab; picker = null; editing = null; render(); scrollTo(0, 0); return; }
-    if (d.pet) { S.cur = d.pet; if (tab === "settings") tab = "today"; picker = null; seg = "base"; fixId = null; save(); render(); return; }
+    if (d.pet) { const same = S.cur === d.pet; S.cur = d.pet; if (tab === "settings") { editing = null; delPet = null; save(); render(); if (!same) toast(P().name + " 설정을 보고 있어요"); return; } picker = null; seg = "base"; fixId = null; save(); render(); return; }
     if (d.log) { if (d.log === "walk" || d.log === "note" || d.log === "waterml" || FOODTYPE[d.log] || PICK.includes(btype(P(), d.log))) { picker = picker === d.log ? null : d.log; render(); if (picker && b.closest(".memo")) { const pe = document.querySelector(".picker"); pe && pe.scrollIntoView({ block: "center", behavior: "smooth" }); } if (picker === "note") { const t = $("#notetext"); t && t.focus(); } return; } addLog(d.log); return; }
     if (d.dose !== undefined && picker) { addLog(picker, { u: +d.dose }); return; }
     if (d.walk) { addLog("walk", { min: +d.walk }); return; }
@@ -649,10 +657,16 @@
     if (d.dellab) { S.labs = S.labs.filter((x) => x.id !== d.dellab); save(); toast("검사 기록을 지웠어요"); render(); return; }
     if (d.delr) { S.resp = S.resp.filter((r) => r.id !== d.delr); save(); toast("호흡수 기록을 지웠어요"); render(); return; }
     if (d.period) { period = +d.period; render(); return; }
-    if (d.editpet) { editing = d.editpet; render(); return; }
+    if (d.editpet) { editing = d.editpet; delPet = null; render(); scrollTo(0, 0); return; }
     switch (d.act) {
       case "add-pet": tab = "settings"; editing = "new"; render(); scrollTo(0, 0); return;
-      case "cancel-pet": editing = null; render(); return;
+      case "cancel-pet": editing = null; delPet = null; render(); return;
+      case "delpet": delPet = d.pid; render(); const db = document.querySelector(".delpet"); db && db.scrollIntoView({ block: "center" }); return;
+      case "delpet-no": delPet = null; render(); return;
+      case "delpet-ok": { const q = S.pets.find((x) => x.id === d.pid); if (!q) return; const keep = (x) => x.pid !== q.id;
+        S.pets = S.pets.filter((x) => x.id !== q.id); S.logs = S.logs.filter(keep); S.weights = S.weights.filter(keep); S.resp = S.resp.filter(keep); S.labs = S.labs.filter(keep); S.sch = S.sch.filter(keep);
+        if (S.cur === q.id) S.cur = S.pets.length ? S.pets[0].id : null; if (!S.pets.length && S.demo) S = blank();
+        delPet = null; editing = null; tab = S.pets.length ? "settings" : "today"; save(); toast(josa(q.name, "을", "를") + " 지웠어요"); render(); scrollTo(0, 0); return; }
       case "close-picker": picker = null; render(); return;
       case "demo": S = demo(); save(); tab = "today"; render(); return;
       case "clear-demo": S = blank(); save(); tab = "today"; render(); return;
@@ -715,7 +729,7 @@
     if (id === "glucform") { const n = parseInt(v("#glucval"), 10); if (!(n >= 10 && n <= 1000)) { toast("혈당을 숫자로 넣어 주세요"); return; } addLog("glucose", { mg: n }); return; }
     if (id === "qolform") { const q = {}; for (const [k] of QOL) { const r = document.querySelector(`input[name=q-${k}]:checked`); if (!r) { toast("여섯 가지를 모두 골라 주세요"); return; } q[k] = +r.value; } addLog("qol", { q, score: Object.values(q).reduce((a, b) => a + b, 0) }); return; }
     if (id === "noteform") { const text = v("#notetext"); if (!text) { toast("메모를 적어 주세요"); return; } addLog("note", { text }); return; }
-    if (id === "wform") { const kg = parseFloat(v("#wkg").replace(",", ".")); if (!(kg > 0.1 && kg < 120)) { toast("체중을 kg 숫자로 넣어 주세요 (예: 3.55)"); return; } const p = P(); S.weights.push({ id: uid(), pid: p.id, t: now(), kg, by: S.me }); save(); toast(p.name + " " + kg + "kg 기록했어요"); render(); return; }
+    if (id === "wform") { const kg = parseFloat(v("#wkg").replace(",", ".")); if (!(kg > 0.1 && kg < 120)) { toast("체중을 kg 숫자로 넣어 주세요 (예: 3.55)"); return; } const p = P(), dv = v("#wdate"), t = !dv || dv === iso(now()) ? now() : Math.min(fromIso(dv) + 9 * 3600000, now()); S.weights.push({ id: uid(), pid: p.id, t, kg, by: S.me }); save(); toast(p.name + " " + (t < sod(now()) ? md(t) + " " : "") + kg + "kg 기록했어요"); render(); return; }
     if (id === "schform") { const name = v("#s-name"), last = v("#s-last"), every = parseInt(v("#s-every"), 10); if (!name || !last || !(every > 0)) { toast("이름, 날짜, 간격을 모두 넣어 주세요"); return; } S.sch.push({ id: uid(), pid: P().id, name, last: fromIso(last), every }); save(); toast(name + " 일정을 추가했어요"); render(); return; }
     if (e.target.classList.contains("donef")) { const s = S.sch.find((x) => x.id === e.target.dataset.sid), dv = v("#donedate"); if (!s || !dv) return; const t = Math.min(fromIso(dv), sod(now())); s.last = t; doneSch = null; save(); toast(s.name + " " + md(t) + "에 한 걸로 기록, 다음 날짜를 다시 계산했어요"); render(); return; }
     if (id === "mlform") { const n = parseInt(v("#mlval"), 10); if (!(n > 0 && n < 5000)) { toast("ml 숫자로 넣어 주세요"); return; } addLog("waterml", { ml: n }); return; }
