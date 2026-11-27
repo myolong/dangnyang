@@ -447,3 +447,21 @@ a.btn{display:inline-block;text-decoration:none;text-align:center}
 .memprev small{margin-top:14px;font-weight:700;color:var(--acc);font-size:11px}
 .subh{font-size:13px;color:var(--acc);margin:16px 0 6px}
 .sitwarn{background:var(--red-soft);border-left:4px solid var(--red);color:var(--red);font-weight:700;font-size:13.5px;padding:8px 10px;word-break:keep-all}
+/* 추억 카드: 오늘의 한 장 + 쌓인 카드 */
+.memnew .mn-hd{display:flex;justify-content:space-between;align-items:baseline}
+.memnew .mn-hd b{font-size:15px}
+.memnew .mn-hd span{font-size:12px;color:var(--ink2)}
+.mn-ph{display:flex;align-items:flex-end;justify-content:center;width:100%;aspect-ratio:16/10;border:1.5px dashed var(--line);border-radius:6px;background:#E8DFD0 center/cover no-repeat;padding:0 0 10px;color:var(--ink2);font-size:13px}
+.mn-ph.has{border-style:solid}
+.mn-ph.has span{background:rgba(0,0,0,.45);color:#fff;padding:3px 10px;border-radius:12px;font-size:12px}
+.memdone{display:flex;justify-content:space-between;align-items:center;font-size:13.5px;color:var(--acc);font-weight:600}
+.memgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.mc{display:flex;flex-direction:column;gap:3px;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:6px 6px 8px;color:var(--ink);min-width:0}
+.mc.on{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc)}
+.mc-img{display:block;width:100%;aspect-ratio:16/10;border-radius:4px;background:#D9CDBA center/cover no-repeat}
+.mc b{font-size:12px;color:var(--acc)}
+.mc-t{font-size:12.5px;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:keep-all}
+.memset{margin-top:16px;font-size:13px}
+.memset summary{cursor:pointer;color:var(--ink2)}
+.linkbtn.danger{color:var(--red)}
+.memprev{aspect-ratio:auto;padding:18px 16px 14px;margin-top:12px;background:var(--surface)}

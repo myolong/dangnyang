@@ -41,11 +41,11 @@
   const dxText = (p) => [p.dx, careOf(p).filter((k) => !guessCare(p.dx).includes(k)).map((k) => CARE[k].label).join(", ")].filter(Boolean).join(", ") || "없음";
 
   // ---------- 저장 ----------
-  const blank = () => ({ v: 1, pets: [], cur: null, me: "나", family: ["나"], logs: [], weights: [], sch: [], resp: [], labs: [], demo: false });
+  const blank = () => ({ v: 1, pets: [], cur: null, me: "나", family: ["나"], logs: [], weights: [], sch: [], resp: [], labs: [], mem: [], demo: false });
   let S;
   try { S = JSON.parse(localStorage.getItem(KEY) || "null"); } catch (e) { S = null; }
   if (!S || S.v !== 1) S = blank();
-  S.resp = S.resp || []; S.labs = S.labs || [];
+  S.resp = S.resp || []; S.labs = S.labs || []; S.mem = S.mem || [];
   S.pets.forEach((p) => { if (!p.care) p.care = guessCare(p.dx); });
   function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { toast("저장 공간이 부족하거나 막혀 있어요"); } }
   const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
@@ -608,39 +608,64 @@
   }
   const annivText = (p, a) => a.kind === "birth" ? `${p.name} ${a.n}번째 생일` : a.kind === "adopt" ? `${josa(p.name, "이", "가")} 우리 집에 온 지 ${a.n}년` : `${josa(p.name, "과", "와")} 함께한 지 ${comma(a.n)}일`;
   function annivLine(p) {
-    const a = annivs(p, 7)[0], dw = daysWith(p); if (!a && !dw) return "";
+    const a = annivs(p, 7)[0], dw = daysWith(p), done = !!memToday(p), cta = done ? "오늘 카드 ✓" : "오늘의 한 장 ›";
     const left = a ? Math.round((a.t - sod(now())) / DAY) : 0;
-    if (a && left === 0) return `<button type="button" class="annv today" data-act="memcard"><b>오늘은 ${esc(annivText(p, a))}이에요</b><span>추억 카드 만들기 ›</span></button>`;
-    return `<button type="button" class="annv" data-act="memcard"><span>${dw ? `함께한 지 <b>${comma(dw)}일째</b>` : ""}${a ? `${dw ? " · " : ""}${esc(annivText(p, a))} D-${left}` : ""}</span><span>추억 카드 ›</span></button>`;
+    if (a && left === 0) return `<button type="button" class="annv today" data-act="memcard"><b>오늘은 ${esc(annivText(p, a))}이에요</b><span>${done ? "오늘 카드 ✓" : "카드 남기기 ›"}</span></button>`;
+    return `<button type="button" class="annv" data-act="memcard"><span>${dw ? `함께한 지 <b>${comma(dw)}일째</b>` : ""}${a ? `${dw ? " · " : ""}${esc(annivText(p, a))} D-${left}` : ""}${!dw && !a ? `추억 카드 <b>${memOf(p).length}장</b>` : ""}</span><span>${cta}</span></button>`;
   }
-  let memKind = null;
-  function memOptions(p) {
-    const o = [], dw = daysWith(p), T = sod(now());
-    if (dw) o.push(["days", `함께한 지 ${comma(dw)}일째`]);
-    if (p.birth) { const b = new Date(fromIso(p.birth)), n = new Date(T); if (b.getMonth() === n.getMonth() && b.getDate() === n.getDate() && n.getFullYear() > b.getFullYear()) o.push(["birth", `${n.getFullYear() - b.getFullYear()}번째 생일`]); }
-    if (p.adopt) { const b = new Date(fromIso(p.adopt)), n = new Date(T); if (b.getMonth() === n.getMonth() && b.getDate() === n.getDate() && n.getFullYear() > b.getFullYear()) o.push(["adopt", `우리 집에 온 지 ${n.getFullYear() - b.getFullYear()}년`]); }
-    if (age(p)) o.push(["age", `${age(p)}`]);
-    o.push(["today", ymd(T)]);
-    return o;
+  // ---------- 추억 카드: 하루 한 장씩 사진·한마디를 남겨 쌓아 감 ----------
+  // 글은 S.mem [{id, pid, day:"YYYY-MM-DD", text, ph:true/false, t}], 사진은 용량이 커서 IndexedDB(orae-photos/mem)에 id로 저장
+  const IDB = (() => {
+    let dbp = null;
+    const open = () => dbp || (dbp = new Promise((res, rej) => { try { const r = indexedDB.open("orae-photos", 1); r.onupgradeneeded = () => r.result.createObjectStore("mem"); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); } catch (e) { rej(e); } }));
+    const tx = (mode, fn) => open().then((db) => new Promise((res, rej) => { const t = db.transaction("mem", mode), q = fn(t.objectStore("mem")); t.oncomplete = () => res(q && q.result); t.onerror = () => rej(t.error); }));
+    return { get: (k) => tx("readonly", (s) => s.get(k)), set: (k, v) => tx("readwrite", (s) => s.put(v, k)), del: (k) => tx("readwrite", (s) => s.delete(k)),
+      all: () => open().then((db) => new Promise((res, rej) => { const t = db.transaction("mem"), st = t.objectStore("mem"), out = {}; const c = st.openCursor(); c.onsuccess = () => { const cur = c.result; if (cur) { out[cur.key] = cur.value; cur.continue(); } }; t.oncomplete = () => res(out); t.onerror = () => rej(t.error); })) };
+  })();
+  const memCache = new Map();
+  const memImg = (id) => (memCache.has(id) ? Promise.resolve(memCache.get(id)) : IDB.get(id).then((v) => { if (v) memCache.set(id, v); return v; }).catch(() => null));
+  // 화면을 그린 뒤 카드 사진을 채워 넣음
+  function hydrateMem() { document.querySelectorAll("[data-mimg]").forEach((el) => memImg(el.dataset.mimg).then((v) => { if (v) el.style.backgroundImage = `url(${v})`; })); }
+  const memOf = (p) => (S.mem || []).filter((m) => m.pid === p.id).sort((a, b) => (a.day < b.day ? 1 : -1));
+  const todayIso = () => iso(now());
+  const memToday = (p) => memOf(p).find((m) => m.day === todayIso());
+  // 카드 큰 글씨: 그날이 기념일이면 기념일, 아니면 함께한 날 수, 그것도 없으면 나이
+  function memHead(p, day) {
+    const T = fromIso(day), d = new Date(T), same = (s) => { if (!s) return 0; const b = new Date(fromIso(s)); return b.getMonth() === d.getMonth() && b.getDate() === d.getDate() && d.getFullYear() > b.getFullYear() ? d.getFullYear() - b.getFullYear() : 0; };
+    const by = same(p.birth), ay = same(p.adopt), dw = p.adopt ? Math.floor((T - fromIso(p.adopt)) / DAY) + 1 : 0;
+    if (by) return `${by}번째 생일`; if (ay) return `우리 집에 온 지 ${ay}년`;
+    if (dw > 0) return `함께한 지 ${comma(dw)}일째`;
+    return age(p) || ymd(T);
   }
+  let memDraft = null, memEdit = false, memOpen = null, memDel = null, photoFor = null;
+  // 사진을 고르러 가거나 화면을 다시 그리기 전에, 적던 한마디를 잠시 보관
+  function keepMemText() { const t = $("#m-text"); if (t) memDraft = Object.assign({}, memDraft && memDraft.pid === P().id ? memDraft : { pid: P().id }, { text: t.value }); }
   function vMemory() {
-    const p = P(), opts = memOptions(p); if (!opts.some((o) => o[0] === memKind)) memKind = opts[0][0];
-    const head = opts.find((o) => o[0] === memKind)[1], up = annivs(p, 60);
-    return `<section><h2><span><span class="en">MEMORY</span>추억 카드</span></h2>
-    <div class="note" style="margin:0 0 8px">인스타 스토리 크기(세로) 그림으로 만들어요. 사진은 오늘 화면 큰 사진이 들어가요.</div>
-    <form class="form card" id="memform">
-      <label>우리 집에 온 날 <input id="m-adopt" type="date" value="${esc(p.adopt)}" max="${iso(now())}"></label>
-      ${p.adopt ? "" : '<div class="note" style="margin:-4px 0 0">넣으면 \'함께한 지 며칠째\'와 기념일을 챙겨 드려요. 대략이어도 괜찮아요.</div>'}
-      <label>큰 글씨<select id="m-kind">${opts.map(([k, t]) => `<option value="${k}" ${k === memKind ? "selected" : ""}>${esc(t)}</option>`).join("")}</select></label>
-      <label>한마디 (선택)<input id="m-msg" maxlength="40" value="${esc(p.memMsg)}" placeholder="예: 오늘도 내 옆에 있어 줘서 고마워" autocomplete="off"></label>
-    </form>
-    <div class="memprev" aria-hidden="true"><div class="mp-img${p.photo ? "" : " none"}"${bg(p)}></div><b>${esc(p.name)}</b><em>${esc(head)}</em>${p.memMsg ? `<i>${esc(p.memMsg)}</i>` : ""}<small>오래곁에</small></div>
-    <div class="lock"><button class="btn" data-act="mem-image" type="button">카드 저장·공유</button>${p.photo ? `<button class="btn ghost" data-act="photo-fit" data-pid="${p.id}" type="button">사진 위치·크기 맞추기</button>` : `<button class="btn ghost" data-act="photo" data-pid="${p.id}" type="button">사진 넣기</button>`}</div>
-    ${p.photo ? `<div class="note" style="margin:6px 0 0">카드 사진은 오늘 화면 큰 사진과 같은 틀이라, 맞추면 두 곳에 함께 바뀌어요. <button class="linkbtn" data-act="photo" data-pid="${p.id}" type="button">다른 사진으로 바꾸기</button></div>` : ""}
+    const p = P(), list = memOf(p), td = memToday(p), dw = daysWith(p), up = annivs(p, 60);
+    const ph = (m) => (m && m.ph ? ` data-mimg="${m.id}"` : bg(p));
+    const editing = !td || memEdit, draftPh = memDraft && memDraft.pid === p.id ? memDraft.ph : null;
+    const compose = editing ? `<form class="form card memnew" id="memform">
+        <div class="mn-hd"><b>오늘의 한 장</b><span>${ymd(now())}${dw ? " · " + comma(dw) + "일째" : ""}</span></div>
+        <button type="button" class="mn-ph${draftPh || (td && td.ph) || p.photo ? " has" : ""}" data-act="mem-photo"${draftPh ? ` style="background-image:url(${draftPh})"` : td && td.ph ? ` data-mimg="${td.id}"` : bg(p)}><span>${draftPh || (td && td.ph) ? "사진 바꾸기" : p.photo ? "오늘 사진 고르기 (안 고르면 대표 사진)" : "오늘 사진 고르기"}</span></button>
+        <label>오늘 한마디<textarea id="m-text" rows="2" maxlength="60" placeholder="예: 오늘은 산책을 끝까지 걸었어. 고마워">${esc(memDraft && memDraft.pid === p.id && memDraft.text != null ? memDraft.text : td ? td.text : "")}</textarea></label>
+        <div class="r"><button class="btn" type="submit">${td ? "고친 내용 저장" : "카드 남기기"}</button>${td ? '<button class="btn ghost" type="button" data-act="mem-cancel">취소</button>' : ""}</div></form>`
+      : `<div class="card memdone"><span>오늘 카드를 남겼어요</span><button class="linkbtn" data-act="mem-edit" type="button">고치기</button></div>`;
+    const open = memOpen && list.find((m) => m.id === memOpen);
+    const big = open ? `<div class="memprev" id="memopen"><div class="mp-img"${ph(open)}></div><b>${esc(p.name)}</b><em>${esc(memHead(p, open.day))}</em>${open.text ? `<i>${esc(open.text)}</i>` : ""}<small>${ymd(fromIso(open.day))} · 오래곁에</small></div>
+      <div class="lock"><button class="btn" data-act="mem-image" data-mid="${open.id}" type="button">카드 저장·공유</button><button class="btn ghost" data-act="mem-close" type="button">닫기</button></div>
+      <div class="r" style="margin-top:6px;text-align:right">${memDel === open.id ? `<button class="linkbtn danger" data-act="mem-del-ok" data-mid="${open.id}" type="button">정말 지울까요? 한 번 더 누르면 지워져요</button>` : `<button class="linkbtn" data-act="mem-del" data-mid="${open.id}" type="button">이 카드 지우기</button>`}</div>` : "";
+    const grid = list.length ? `<div class="memgrid">${list.map((m) => `<button type="button" class="mc${m.id === memOpen ? " on" : ""}" data-mopen="${m.id}"><span class="mc-img"${ph(m)}></span><b>${md(fromIso(m.day))}${m.day === todayIso() ? " 오늘" : ""}</b><span class="mc-t">${esc(m.text || memHead(p, m.day))}</span></button>`).join("")}</div>`
+      : '<div class="empty" style="padding:18px 0">아직 카드가 없어요. 오늘의 한 장부터 남겨 보세요.</div>';
+    return `<section><h2><span><span class="en">MEMORY</span>${esc(p.name)} 추억 카드</span><span class="pill">${list.length}장</span></h2>
+    <div class="note" style="margin:0 0 8px">하루에 한 장, 사진과 한마디를 남기면 카드가 쌓여요. 카드를 누르면 크게 보고 인스타 스토리 크기로 저장할 수 있어요.</div>
+    ${compose}${big}
+    <h3 class="subh">쌓인 카드</h3>${grid}
     ${up.length ? `<h3 class="subh">다가오는 기념일</h3><div class="list">${up.map((a) => `<div class="row"><span class="time">${md(a.t)}</span><span class="what">${esc(annivText(p, a))}</span><span class="who mono">${a.t === sod(now()) ? "오늘" : "D-" + Math.round((a.t - sod(now())) / DAY)}</span></div>`).join("")}</div>` : ""}
+    <details class="memset"${p.adopt ? "" : " open"}><summary>우리 집에 온 날${p.adopt ? " · " + esc(p.adopt.replace(/-/g, ".")) : ""}</summary><div class="form" style="margin-top:8px"><label>우리 집에 온 날<input id="m-adopt" type="date" value="${esc(p.adopt)}" max="${iso(now())}"></label>
+      <div class="note" style="margin:0">넣으면 카드에 '함께한 지 며칠째'가 들어가고 기념일을 챙겨 드려요. 대략이어도 괜찮아요.</div></div></details>
     </section>`;
   }
-  async function memImage(p, head, msg) {
+  async function memImage(p, head, msg, photo, dayT) {
     try { if (document.fonts && document.fonts.ready) await document.fonts.ready; } catch (_) {}
     const W = 1080, H = 1920, F = '"Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",sans-serif', C = { bg: "#F1ECE3", card: "#FBF8F1", ink: "#2F2A24", muted: "#7F7466", accent: "#4F6B4A", rule: "#E3D9C6" };
     const cv = document.createElement("canvas"); cv.width = W; cv.height = H; const x = cv.getContext("2d");
@@ -650,7 +675,7 @@
     const cw = W - 144, pw0 = cw - 80, ch = 40 + Math.round(pw0 * 10 / 16) + 120 + 100 + (msg ? 90 + 58 : 0) + 230, cx = 72, cy = Math.max(200, Math.round((H - 260 - ch) / 2)); x.fillStyle = C.card; x.fillRect(cx, cy, cw, ch); x.strokeStyle = C.rule; x.lineWidth = 2; x.strokeRect(cx, cy, cw, ch);
     const px = cx + 40, py = cy + 40, pw = cw - 80, ph = Math.round(pw * 10 / 16);
     let drawn = false;
-    if (p.photo) { const img = new Image(); img.src = p.photo; try { await img.decode(); } catch (_) {}
+    if (photo || p.photo) { const img = new Image(); img.src = photo || p.photo; try { await img.decode(); } catch (_) {}
       if (img.naturalWidth) { const r = Math.max(pw / img.naturalWidth, ph / img.naturalHeight), sw = pw / r, sh = ph / r; x.drawImage(img, (img.naturalWidth - sw) / 2, (img.naturalHeight - sh) / 2, sw, sh, px, py, pw, ph); drawn = true; } }
     if (!drawn) { x.fillStyle = "#D9CDBA"; x.fillRect(px, py, pw, ph); font(200, 700); x.fillStyle = C.card; x.textAlign = "center"; x.fillText(String(p.name || "").slice(0, 1), W / 2, py + ph / 2 + 70); x.textAlign = "left"; }
     let y = py + ph + 120; x.textAlign = "center";
@@ -659,20 +684,31 @@
     if (msg) { y += 90; font(40); x.fillStyle = C.ink; const words = String(msg).split(" "); let line = "", lines = [];
       for (const w of words) { if (x.measureText(line + w).width > pw - 40 && line) { lines.push(line.trim()); line = ""; } line += w + " "; } lines.push(line.trim());
       lines.slice(0, 2).forEach((ln, i) => x.fillText(ln, W / 2, y + i * 58)); y += (Math.min(lines.length, 2) - 1) * 58; }
-    font(30); x.fillStyle = C.muted; x.fillText(ymd(now()), W / 2, cy + ch - 60);
+    font(30); x.fillStyle = C.muted; x.fillText(ymd(dayT || now()), W / 2, cy + ch - 60);
     x.fillStyle = C.accent; x.fillRect(W / 2 - 30, cy + ch - 130, 60, 4);
     // 맨 아래 앱 이름
     font(34, 700); x.fillStyle = C.accent; x.fillText("오래곁에", W / 2, H - 170); font(26); x.fillStyle = C.muted; x.fillText("노견·노묘 돌봄 기록 · " + location.host, W / 2, H - 122);
     x.textAlign = "left";
     return new Promise((res) => cv.toBlob((bl) => res(bl), "image/jpeg", 0.92));
   }
-  async function shareMemImage() {
+  async function shareMemImage(mid) {
+    const p = P(), m = (S.mem || []).find((x) => x.id === mid); if (!m) return;
     toast("카드를 만드는 중이에요");
-    const p = P(), opts = memOptions(p), head = (opts.find((o) => o[0] === memKind) || opts[0])[1];
-    const blob = await memImage(p, head, p.memMsg || "");
-    shareBlob(blob, p.name + "-추억카드-" + iso(now()) + ".jpg", p.name + " 추억 카드", "image/jpeg");
+    const photo = m.ph ? await memImg(m.id) : null;
+    const blob = await memImage(p, memHead(p, m.day), m.text || "", photo, fromIso(m.day));
+    shareBlob(blob, p.name + "-추억카드-" + m.day + ".jpg", p.name + " 추억 카드", "image/jpeg");
   }
-
+  // 오늘의 한 장 저장: 사진은 IndexedDB에, 글은 S.mem에
+  async function saveMemToday() {
+    const p = P(), text = ($("#m-text") ? $("#m-text").value.trim() : ""), draft = memDraft && memDraft.pid === p.id ? memDraft.ph : null;
+    let m = memToday(p); if (!text && !draft && !(m && m.ph) && !p.photo) { toast("사진이나 한마디 중 하나는 남겨 주세요"); return; }
+    S.mem = S.mem || []; if (!m) { m = { id: uid(), pid: p.id, day: todayIso(), t: now() }; S.mem.push(m); }
+    m.text = text;
+    if (draft) { try { await IDB.set(m.id, draft); memCache.set(m.id, draft); m.ph = true; } catch (_) { toast("사진을 저장하지 못했어요. 글만 저장할게요"); } }
+    memDraft = null; memEdit = false; save(); try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch (_) {}
+    toast(memOf(p).length + "번째 카드를 남겼어요"); render();
+  }
+  function delMemPhotos(ids) { ids.forEach((id) => { memCache.delete(id); IDB.del(id).catch(() => {}); }); }
   // ---------- 화면: 설정 ----------
   function vSettings() {
     if (editing) return `<section><h2>${editing === "new" ? "아이 추가" : "아이 정보 수정"}</h2>${petForm(editing === "new" ? null : S.pets.find((p) => p.id === editing))}</section>`;
@@ -777,6 +813,7 @@
     $("#pethead").hidden = tab === "settings";
     document.querySelectorAll("nav.tabs button").forEach((b) => b.setAttribute("aria-current", b.dataset.tab === tab ? "page" : "false"));
     $("#view").innerHTML = { today: vToday, weight: vWeight, schedule: vSchedule, summary: vShare, settings: vSettings }[tab]();
+    hydrateMem();
   }
 
   // ---------- 동작 ----------
@@ -790,7 +827,8 @@
     bori.stock = { count: 30, perDay: 2, at: sod(at(9, 0, 0)) }; bori.clinic = "우리동네동물병원"; bori.cphone = "02-000-0000"; bori.chours = "평일 9~20시, 일 휴무";
     nabi.stock = { count: 40, perDay: 1, at: sod(at(10, 0, 0)) }; nabi.clinic = "우리동네동물병원"; nabi.cphone = "02-000-0000";
     bori.adopt = iso(at(12 * 365 + 200, 0, 0)); bori.sit = { owner: "나 010-0000-0000", food: "아침 8시·저녁 7시, 한 번에 종이컵 1/3", meds: "심장약 반 알을 아침·저녁 밥 먹은 뒤 간식에 싸서", watch: "밥을 두 끼 연속 안 먹거나, 잘 때 숨을 헐떡이면 바로 연락 주세요", habit: "천둥 치면 무서워해요. 안아 주면 진정돼요" };
-    bori.foods = ["로얄캐닌 심장 처방식", "힐스 k/d"]; bori.snacks = ["져키", "덴탈껌", "고구마"];
+    bori.foods = ["로얄캐닌 심장 처방식", "힐스 k/d"];
+    S2.mem = [[1, "오늘은 산책을 끝까지 걸었어. 고마워"], [2, "병원 다녀와서 푹 잤어"], [4, "간식 앞에선 아직도 아기 같아"], [7, "햇볕 좋은 창가에서 낮잠"]].map(([d, text]) => ({ id: uid(), pid: bori.id, day: iso(at(d, 0, 0)), text, t: at(d, 21, 0) })); bori.snacks = ["져키", "덴탈껌", "고구마"];
     nabi.foods = ["신장 처방식 습식", "신장 처방식 건식"]; nabi.snacks = ["츄르"];
     const kong = { id: uid(), name: "콩이", species: "dog", breed: "토이 푸들", birth: iso(at(15 * 365 + 20, 0, 0)), sex: "중성화 암컷", dx: "당뇨, 인지장애", allergy: "", meds: "인슐린 하루 2회", care: ["diabetes", "ccd"], foods: ["당뇨 처방식"], snacks: [] };
     S2.pets = [bori, nabi, kong]; S2.cur = bori.id;
@@ -830,7 +868,7 @@
     const d = b.dataset;
     if (d.act !== "wipe" && S.confirmWipe) { S.confirmWipe = false; }
     if (d.tab) { tab = d.tab; picker = null; editing = null; render(); scrollTo(0, 0); return; }
-    if (d.pet) { const same = S.cur === d.pet; S.cur = d.pet; if (tab === "settings") { editing = null; delPet = null; save(); render(); if (!same) toast(P().name + " 설정을 보고 있어요"); return; } picker = null; seg = "base"; fixId = null; save(); render(); return; }
+    if (d.pet) { const same = S.cur === d.pet; S.cur = d.pet; if (tab === "settings") { editing = null; delPet = null; save(); render(); if (!same) toast(P().name + " 설정을 보고 있어요"); return; } picker = null; seg = "base"; fixId = null; memDraft = null; memEdit = false; memOpen = null; save(); render(); return; }
     if (d.log) { if (d.log === "walk" || d.log === "note" || d.log === "waterml" || FOODTYPE[d.log] || PICK.includes(btype(P(), d.log))) { picker = picker === d.log ? null : d.log; render(); if (picker && b.closest(".memo")) { const pe = document.querySelector(".picker"); pe && pe.scrollIntoView({ block: "center", behavior: "smooth" }); } if (picker === "note") { const t = $("#notetext"); t && t.focus(); } return; } addLog(d.log); return; }
     if (d.dose !== undefined && picker) { addLog(picker, { u: +d.dose }); return; }
     if (d.walk) { addLog("walk", { min: +d.walk }); return; }
@@ -851,6 +889,7 @@
     if (d.delr) { S.resp = S.resp.filter((r) => r.id !== d.delr); save(); toast("호흡수 기록을 지웠어요"); render(); return; }
     if (d.period) { period = +d.period; render(); return; }
     if (d.sumv) { sumv = d.sumv; render(); return; }
+    if (d.mopen) { memOpen = memOpen === d.mopen ? null : d.mopen; memDel = null; render(); const o = $("#memopen"); o && o.scrollIntoView({ block: "center", behavior: "smooth" }); return; }
     if (d.editpet) { editing = d.editpet; delPet = null; render(); scrollTo(0, 0); return; }
     switch (d.act) {
       case "add-pet": tab = "settings"; editing = "new"; render(); scrollTo(0, 0); return;
@@ -858,21 +897,30 @@
       case "delpet": delPet = d.pid; render(); const db = document.querySelector(".delpet"); db && db.scrollIntoView({ block: "center" }); return;
       case "delpet-no": delPet = null; render(); return;
       case "delpet-ok": { const q = S.pets.find((x) => x.id === d.pid); if (!q) return; const keep = (x) => x.pid !== q.id;
-        S.pets = S.pets.filter((x) => x.id !== q.id); S.logs = S.logs.filter(keep); S.weights = S.weights.filter(keep); S.resp = S.resp.filter(keep); S.labs = S.labs.filter(keep); S.sch = S.sch.filter(keep);
+        S.pets = S.pets.filter((x) => x.id !== q.id); S.logs = S.logs.filter(keep); S.weights = S.weights.filter(keep); S.resp = S.resp.filter(keep); S.labs = S.labs.filter(keep); S.sch = S.sch.filter(keep); delMemPhotos((S.mem || []).filter((x) => !keep(x) && x.ph).map((x) => x.id)); S.mem = (S.mem || []).filter(keep);
         if (S.cur === q.id) S.cur = S.pets.length ? S.pets[0].id : null; if (!S.pets.length && S.demo) S = blank();
         delPet = null; editing = null; tab = S.pets.length ? "settings" : "today"; save(); toast(josa(q.name, "을", "를") + " 지웠어요"); render(); scrollTo(0, 0); return; }
       case "close-picker": picker = null; render(); return;
       case "demo": S = demo(); save(); tab = "today"; render(); return;
       case "clear-demo": S = blank(); save(); tab = "today"; render(); return;
       case "checks-auto": { const p = P(); delete p.checks; save(); toast("자동으로 되돌렸어요"); render(); return; }
-      case "export": download("오래곁에-백업-" + iso(now()) + ".json", JSON.stringify(S)); toast("백업 파일을 저장했어요"); return;
-      case "wipe": if (!S.confirmWipe) { S.confirmWipe = true; render(); return; } S = blank(); save(); tab = "today"; editing = null; toast("모든 기록을 지웠어요"); render(); return;
-      case "photo": photoPid = d.pid; $("#photofile").value = ""; $("#photofile").click(); return;
+      case "export": { const ids = (S.mem || []).filter((m) => m.ph).map((m) => m.id);
+        Promise.all(ids.map((id) => memImg(id).then((v) => [id, v]))).then((ps) => { const memImgs = {}; ps.forEach(([id, v]) => { if (v) memImgs[id] = v; });
+          download("오래곁에-백업-" + iso(now()) + ".json", JSON.stringify(ids.length ? Object.assign({}, S, { memImgs }) : S)); toast("백업 파일을 저장했어요" + (ids.length ? " (추억 카드 사진 " + Object.keys(memImgs).length + "장 포함)" : "")); });
+        return; }
+      case "wipe": if (!S.confirmWipe) { S.confirmWipe = true; render(); return; } delMemPhotos((S.mem || []).filter((x) => x.ph).map((x) => x.id)); S = blank(); save(); tab = "today"; editing = null; toast("모든 기록을 지웠어요"); render(); return;
+      case "photo": photoFor = null; photoPid = d.pid; $("#photofile").value = ""; $("#photofile").click(); return;
       case "photo-fit": { const q = S.pets.find((x) => x.id === d.pid); if (q && q.photo) openCrop(q.photo, q.id, false); return; }
       case "photo-del": { const q = S.pets.find((x) => x.id === d.pid); if (q) { delete q.photo; save(); toast("사진을 뺐어요"); render(); } return; }
       case "image": shareSummaryImage(); return;
       case "sit-image": saveSit(); shareSitImage(); return;
-      case "mem-image": shareMemImage(); return;
+      case "mem-image": shareMemImage(d.mid); return;
+      case "mem-photo": keepMemText(); photoFor = "mem"; photoPid = P().id; $("#photofile").value = ""; $("#photofile").click(); return;
+      case "mem-edit": memEdit = true; memOpen = null; render(); return;
+      case "mem-cancel": memEdit = false; memDraft = null; render(); return;
+      case "mem-close": memOpen = null; memDel = null; render(); return;
+      case "mem-del": memDel = d.mid; render(); return;
+      case "mem-del-ok": { const m = (S.mem || []).find((x) => x.id === d.mid); if (!m) return; S.mem = S.mem.filter((x) => x.id !== m.id); if (m.ph) delMemPhotos([m.id]); memOpen = null; memDel = null; save(); toast("카드를 지웠어요"); render(); return; }
       case "memcard": tab = "summary"; sumv = "mem"; picker = null; render(); scrollTo(0, 0); return;
       case "install": if (installEvt) { const ev = installEvt; ev.prompt(); ev.userChoice.then((c) => { if (c && c.outcome === "accepted") { installEvt = null; toast("홈 화면에 설치했어요"); } render(); }, () => {}); } return;
       case "install-hide": lsSet("orae-install-hide", "1"); render(); return;
@@ -891,7 +939,7 @@
   let photoPid = null;
   const CROP_W = 800, CROP_H = 500;
   function loadImg(src) { return new Promise((res, rej) => { const img = new Image(); img.onload = () => res(img); img.onerror = rej; img.src = src; }); }
-  function openCrop(src, pid, revoke) {
+  function openCrop(src, pid, revoke, onSave) {
     const q = S.pets.find((x) => x.id === pid) || P();
     loadImg(src).then((img) => {
       const ov = document.createElement("div"); ov.className = "overlay crop"; document.body.appendChild(ov);
@@ -928,6 +976,7 @@
           const dw = iw * s0 * z, dh = ih * s0 * z, L = W / 2 - dw / 2 + ox, T = H / 2 - dh / 2 + oy;
           const c = document.createElement("canvas"); c.width = CROP_W; c.height = CROP_H;
           c.getContext("2d").drawImage(img, (-L / dw) * iw, (-T / dh) * ih, (W / dw) * iw, (H / dh) * ih, 0, 0, CROP_W, CROP_H);
+          if (onSave) { const data = c.toDataURL("image/jpeg", 0.82); close(); onSave(data); return; }
           const had = !!q.photo; q.photo = c.toDataURL("image/jpeg", 0.85); close(); save(); toast(q.name + " 사진을 " + (had ? "바꿨어요" : "넣었어요")); render();
         } });
     }, () => { if (revoke) URL.revokeObjectURL(src); toast("이 사진은 열 수 없어요. 다른 사진을 골라 주세요"); });
@@ -935,19 +984,19 @@
   document.addEventListener("change", (e) => {
     if (e.target.id === "photofile" && e.target.files[0]) {
       const q = S.pets.find((x) => x.id === photoPid) || P();
+      if (photoFor === "mem") { const pid = q.id; openCrop(URL.createObjectURL(e.target.files[0]), pid, true, (data) => { memDraft = Object.assign({}, memDraft && memDraft.pid === pid ? memDraft : { pid }, { ph: data }); memEdit = true; render(); }); return; }
       openCrop(URL.createObjectURL(e.target.files[0]), q.id, true);
       return;
     }
     if (e.target.id === "fixat") { const l = S.logs.find((x) => x.id === fixId), t = new Date(e.target.value).getTime(); if (l && !isNaN(t)) { l.t = Math.min(t, now()); save(); toast(label(P(), l.k) + " " + (sod(l.t) < sod(now()) ? md(l.t) + " " : "") + hm(l.t) + "으로 고쳤어요"); render(); } return; }
     if (e.target.dataset && e.target.dataset.memo) { const p = P(); p.memoOff = !e.target.checked; save(); toast(p.memoOff ? "오늘 챙길 것을 껐어요" : "오늘 챙길 것을 켰어요"); render(); return; }
     if (e.target.dataset && e.target.dataset.chk) { const p = P(), cur = checks(p).map((c) => c[0]), k = e.target.dataset.chk; p.checks = e.target.checked ? cur.concat(cur.includes(k) ? [] : [k]) : cur.filter((x) => x !== k); save(); render(); return; }
-    if (e.target.id === "m-adopt") { const p = P(); if (e.target.value) p.adopt = e.target.value; else delete p.adopt; memKind = null; save(); render(); return; }
-    if (e.target.id === "m-kind") { memKind = e.target.value; render(); return; }
-    if (e.target.id === "m-msg") { const p = P(), m = e.target.value.trim(); if (m) p.memMsg = m; else delete p.memMsg; save(); render(); return; }
+    if (e.target.id === "m-adopt") { const p = P(); if (e.target.value) p.adopt = e.target.value; else delete p.adopt; keepMemText(); save(); render(); return; }
     if (e.target.id === "whenat") { when = e.target.value || 0; render(); return; }
     if (e.target.id === "me") { S.me = e.target.value; save(); toast(S.me + "(으)로 기록해요"); }
     if (e.target.id === "importfile" && e.target.files[0]) {
-      const fr = new FileReader(); fr.onload = () => { try { const d = JSON.parse(fr.result); if (d.v !== 1 || !Array.isArray(d.pets)) throw 0; S = d; S.demo = false; S.resp = S.resp || []; S.labs = S.labs || []; S.pets.forEach((q) => { if (!q.care) q.care = guessCare(q.dx); }); save(); tab = "today"; toast("백업을 불러왔어요"); render(); } catch (_) { toast("오래곁에 백업 파일이 아니에요"); } }; fr.readAsText(e.target.files[0]);
+      const fr = new FileReader(); fr.onload = () => { try { const d = JSON.parse(fr.result); if (d.v !== 1 || !Array.isArray(d.pets)) throw 0; const imgs = d.memImgs || {}; delete d.memImgs; Object.keys(imgs).forEach((id) => { memCache.set(id, imgs[id]); IDB.set(id, imgs[id]).catch(() => {}); });
+          S = d; S.demo = false; S.resp = S.resp || []; S.labs = S.labs || []; S.mem = S.mem || []; S.pets.forEach((q) => { if (!q.care) q.care = guessCare(q.dx); }); save(); tab = "today"; toast("백업을 불러왔어요"); render(); } catch (_) { toast("오래곁에 백업 파일이 아니에요"); } }; fr.readAsText(e.target.files[0]);
     }
   });
   // 맡길 때 안내서: 적는 동안 바로바로 저장 (화면은 다시 그리지 않음)
@@ -957,7 +1006,7 @@
     e.preventDefault();
     const id = e.target.id, v = (s) => ($(s) ? $(s).value.trim() : "");
     if (id === "sitform") { saveSit(); toast("안내서를 저장했어요"); render(); const sh = $("#sheet"); sh && sh.scrollIntoView({ block: "start", behavior: "smooth" }); return; }
-    if (id === "memform") { const m = $("#m-msg"); if (m) { const p = P(), t = m.value.trim(); if (t) p.memMsg = t; else delete p.memMsg; save(); render(); } return; }
+    if (id === "memform") { saveMemToday(); return; }
     if (id === "petform") {
       const name = v("#f-name"); if (!name) { toast("이름을 넣어 주세요"); return; }
       const data = { name, species: (document.querySelector("input[name=sp]:checked") || {}).value || "dog", breed: v("#f-breed"), birth: v("#f-birth"), sex: v("#f-sex"), dx: v("#f-dx"), allergy: v("#f-allergy"), meds: v("#f-meds"), clinic: v("#f-clinic"), cphone: v("#f-cphone"), chours: v("#f-chours"), care: [...document.querySelectorAll("input[name=care]:checked")].map((x) => x.value) };
