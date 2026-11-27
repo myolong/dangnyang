@@ -635,7 +635,8 @@
       <label>한마디 (선택)<input id="m-msg" maxlength="40" value="${esc(p.memMsg)}" placeholder="예: 오늘도 내 옆에 있어 줘서 고마워" autocomplete="off"></label>
     </form>
     <div class="memprev" aria-hidden="true"><div class="mp-img${p.photo ? "" : " none"}"${bg(p)}></div><b>${esc(p.name)}</b><em>${esc(head)}</em>${p.memMsg ? `<i>${esc(p.memMsg)}</i>` : ""}<small>오래곁에</small></div>
-    <div class="lock"><button class="btn" data-act="mem-image" type="button">카드 저장·공유</button><button class="btn ghost" data-act="photo" data-pid="${p.id}" type="button">${p.photo ? "사진 바꾸기" : "사진 넣기"}</button></div>
+    <div class="lock"><button class="btn" data-act="mem-image" type="button">카드 저장·공유</button>${p.photo ? `<button class="btn ghost" data-act="photo-fit" data-pid="${p.id}" type="button">사진 위치·크기 맞추기</button>` : `<button class="btn ghost" data-act="photo" data-pid="${p.id}" type="button">사진 넣기</button>`}</div>
+    ${p.photo ? `<div class="note" style="margin:6px 0 0">카드 사진은 오늘 화면 큰 사진과 같은 틀이라, 맞추면 두 곳에 함께 바뀌어요. <button class="linkbtn" data-act="photo" data-pid="${p.id}" type="button">다른 사진으로 바꾸기</button></div>` : ""}
     ${up.length ? `<h3 class="subh">다가오는 기념일</h3><div class="list">${up.map((a) => `<div class="row"><span class="time">${md(a.t)}</span><span class="what">${esc(annivText(p, a))}</span><span class="who mono">${a.t === sod(now()) ? "오늘" : "D-" + Math.round((a.t - sod(now())) / DAY)}</span></div>`).join("")}</div>` : ""}
     </section>`;
   }
