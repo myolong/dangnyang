@@ -153,7 +153,7 @@
   }
 
   // ---------- 상태 ----------
-  let tab = "today", picker = null, period = 3, editing = null, doneSch = null, seg = "base", fixId = null;
+  let tab = "today", sumv = "vet", picker = null, period = 3, editing = null, doneSch = null, seg = "base", fixId = null;
 
   // ---------- 화면: 처음 ----------
   function petForm(p) {
@@ -400,6 +400,10 @@
     return { p, from, N, rows, notes, sch, ws,
       basics: [["종류 · 정보", (p.species === "cat" ? "고양이" : "강아지") + (info(p) ? " · " + info(p) : "")], ["진단받은 질환", dxText(p)], ["알레르기", p.allergy || "없음"], ["매일 먹는 약", p.meds || "없음"]].concat(p.clinic || p.cphone ? [["다니는 병원", [p.clinic, p.cphone].filter(Boolean).join(" ")]] : []) };
   }
+  // 요약·공유 탭: 병원용 요약 / 맡길 때 안내서 / 추억 카드
+  function vShare() {
+    return `<div class="seg sumv" role="group" aria-label="무엇을 만들까요">${[["vet", "병원용 요약"], ["sit", "맡길 때 안내서"], ["mem", "추억 카드"]].map(([k, t]) => `<button data-sumv="${k}" aria-pressed="${k === sumv}" type="button">${t}</button>`).join("")}</div>` + (sumv === "sit" ? vSitter() : sumv === "mem" ? vMemory() : vSummary());
+  }
   function vSummary() {
     const D = summaryData(P()), { p, from, N, rows, notes, sch } = D;
     const by = [...new Set(logsOf(p).filter((l) => l.t >= from).map((l) => l.by))].slice(0, 4);
@@ -480,6 +484,192 @@
     }
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
     toast("이미지를 저장했어요");
+  }
+
+  // ---------- 맡길 때 안내서 (펫시터·호텔·가족에게 보내는 한 장) ----------
+  // 보호자가 적은 칸(p.sit)과 이미 있는 아이 정보·사료·약·챙길 것·병원을 모아 보여 줌
+  const SIT = [
+    ["owner", "보호자 연락처", "예: 김OO 010-1234-5678", 1],
+    ["emer", "보호자와 연락이 안 될 때", "예: 동생 010-0000-0000", 1],
+    ["food", "밥 주는 법", "예: 아침 8시·저녁 7시, 한 번에 종이컵 1/3. 물에 10분 불려서", 2],
+    ["meds", "약 먹이는 법", "예: 심장약 반 알을 아침·저녁 밥 먹은 뒤 간식에 싸서", 2],
+    ["walk", "산책·배변", "예: 하루 2번 15분, 계단은 안아서. 배변 패드는 베란다", 2],
+    ["watch", "이럴 땐 바로 연락해 주세요", "예: 밥을 두 끼 연속 안 먹을 때, 숨을 헐떡일 때 (수의사에게 들은 내용을 적어 주세요)", 2],
+    ["habit", "성격·습관", "예: 천둥 치면 무서워해요. 귀 만지는 걸 싫어해요", 2],
+    ["etc", "그 밖에", "예: 간식은 하루 3개까지만", 2]
+  ];
+  const sitOf = (p) => p.sit || {};
+  // 입력 칸의 내용을 그 아이의 p.sit에 저장 (빈 칸은 지움)
+  function saveSit() { const p = P(), s = Object.assign({}, p.sit); document.querySelectorAll("[data-sit]").forEach((el) => { const v = el.value.trim(); if (v) s[el.dataset.sit] = v; else delete s[el.dataset.sit]; }); p.sit = s; save(); }
+  // 최근 3주 기록에서 평소 밥 시간을 어림 (중간값, 10분 단위)
+  const usualTime = (p, k) => { const ts = logsOf(p).filter((l) => l.k === k && l.t >= now() - 21 * DAY).map((l) => { const d = new Date(l.t); return d.getHours() * 60 + d.getMinutes(); }).sort((a, b) => a - b);
+    if (ts.length < 3) return ""; const m = Math.round(ts[Math.floor(ts.length / 2)] / 10) * 10; return String(Math.floor(m / 60) % 24).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0"); };
+  function sitData(p) {
+    const s = sitOf(p), basics = [["이름", p.name], ["정보", [p.species === "cat" ? "고양이" : "강아지", info(p)].filter(Boolean).join(" · ")]];
+    if (p.dx || careOf(p).length) basics.push(["진단", dxText(p)]);
+    if (p.allergy && p.allergy !== "없음") basics.push(["알레르기", p.allergy]);
+    const food = [], fl = (p.foods || []).join(", "), bt = usualTime(p, "breakfast"), dt = usualTime(p, "dinner");
+    if (fl) food.push(["사료", fl]);
+    if (bt || dt) food.push(["평소 밥 시간", [bt && "아침 " + bt, dt && "저녁 " + dt].filter(Boolean).join(" · ") + "쯤"]);
+    if ((p.snacks || []).length) food.push(["간식", p.snacks.join(", ")]);
+    if (s.food) food.push(["밥 주는 법", s.food]);
+    const med = []; if (p.meds) med.push(["먹는 약", p.meds]); if (s.meds) med.push(["먹이는 법", s.meds]);
+    const daily = checks(p).map((c) => c[1]);
+    const clinic = []; if (p.clinic || p.cphone) clinic.push(["다니는 병원", [p.clinic, p.cphone].filter(Boolean).join(" ")]); if (p.chours) clinic.push(["진료 시간", p.chours]);
+    const contact = []; if (s.owner) contact.push(["보호자", s.owner]); if (s.emer) contact.push(["연락이 안 되면", s.emer]);
+    const more = []; if (s.walk) more.push(["산책·배변", s.walk]); if (s.habit) more.push(["성격·습관", s.habit]); if (s.etc) more.push(["그 밖에", s.etc]);
+    return { p, s, basics, food, med, daily, clinic, contact, more };
+  }
+  function vSitter() {
+    const p = P(), s = sitOf(p), D = sitData(p);
+    const rows = (list) => list.map(([a, b]) => `<div class="flag"><span>${esc(a)}</span><span>${esc(b)}</span></div>`).join("");
+    const sec = (t, list) => (list.length ? `<h3>${t}</h3>${rows(list)}` : "");
+    return `<section><h2><span><span class="en">CARE NOTE</span>맡길 때 안내서</span></h2>
+    <div class="note" style="margin:0 0 8px">펫시터·호텔·가족에게 ${esc(josa(p.name, "을", "를"))} 맡길 때 보내는 한 장이에요. 이름·사료·약·병원은 이미 적은 내용이 들어가고, 아래 칸만 채우면 돼요.</div>
+    <form class="form card" id="sitform">${SIT.map(([k, lab, ph, n]) => `<label>${lab}${n > 1 ? `<textarea data-sit="${k}" rows="2" maxlength="200" placeholder="${esc(ph)}">${esc(s[k])}</textarea>` : `<input data-sit="${k}" maxlength="60" value="${esc(s[k])}" placeholder="${esc(ph)}" autocomplete="off">`}</label>`).join("")}
+      <div class="r"><button class="btn" type="submit">저장하고 미리 보기</button></div></form>
+    <article class="sheet" id="sheet" style="margin-top:12px"><div class="hd"><b>${esc(p.name)} 돌봄 안내</b><span>${ymd(now())} 작성</span></div>
+      <div class="dochead">${photoBox(p, "sm")}<dl class="kv">${D.basics.map(([a, b]) => `<dt>${esc(a)}</dt><dd>${esc(b)}</dd>`).join("")}</dl></div>
+      ${sec("연락처", D.contact)}${sec("밥", D.food)}${sec("약", D.med)}
+      ${D.daily.length ? `<h3>매일 챙겨 주세요</h3><ul>${D.daily.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}
+      ${D.s.watch ? `<h3>이럴 땐 바로 연락해 주세요</h3><div class="sitwarn">${esc(D.s.watch)}</div>` : ""}
+      ${sec("병원", D.clinic)}${sec("그 밖에", D.more)}
+      <div class="note">밥·약·배변을 언제 했는지 메모해 주시면 돌아와서 기록에 옮길게요. 고맙습니다.</div></article>
+    <div class="lock"><button class="btn" data-act="sit-image" type="button">이미지로 저장·공유</button><button class="btn ghost" data-act="copy" type="button">글자로 복사</button></div>
+    ${S.pets.length > 1 ? '<div class="note">아이마다 따로 만들어요. 위에서 다른 아이를 누르면 그 아이 안내서가 나와요.</div>' : ""}</section>`;
+  }
+
+  // 세로로 긴 문서 그림 (맡길 때 안내서용). blocks: {h} 소제목, {row:[a,b,flag]} 줄, {li} 점 목록, {warn} 강조 문단
+  async function sheetImage(title, sub, p, blocks, foot) {
+    try { if (document.fonts && document.fonts.ready) await document.fonts.ready; } catch (_) {}
+    const W = 1080, PAD = 64, LW = 280, F = '"Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",sans-serif';
+    const C = { bg: "#FBF8F1", ink: "#2F2A24", muted: "#7F7466", rule: "#E3D9C6", accent: "#4F6B4A", crit: "#A2452B", critSoft: "#F6E6DF", soft: "#E9EEE3" };
+    const cv = document.createElement("canvas"); cv.width = W; cv.height = 8000; const x = cv.getContext("2d");
+    x.fillStyle = C.bg; x.fillRect(0, 0, W, cv.height); x.textBaseline = "alphabetic";
+    const font = (sz, wt) => (x.font = `${wt || 400} ${sz}px ${F}`);
+    const wrap = (text, maxW) => { const out = []; String(text).split("\n").forEach((para) => { let line = "";
+      for (const word of para.split(/(\s+)/)) { if (!word) continue;
+        if (x.measureText(line + word).width <= maxW) { line += word; continue; }
+        if (line.trim()) { out.push(line.trimEnd()); line = ""; } if (!word.trim()) continue;
+        for (const ch of word) { if (x.measureText(line + ch).width > maxW && line) { out.push(line); line = ""; } line += ch; } }
+      out.push(line.trimEnd()); }); return out.length ? out : [""]; };
+    const tw = W - PAD * 2 - (p.photo ? 180 : 0);
+    let y = PAD + 52; font(52, 700); x.fillStyle = C.ink; x.fillText(title, PAD, y, tw);
+    y += 44; font(28); x.fillStyle = C.muted; x.fillText(sub, PAD, y, tw);
+    if (p.photo) { const img = new Image(); img.src = p.photo; try { await img.decode(); } catch (_) {}
+      if (img.naturalWidth) { const pw = 150, ph = 188, px = W - PAD - pw, py = PAD - 8, r = Math.max(pw / img.naturalWidth, ph / img.naturalHeight), sw = pw / r, sh = ph / r;
+        x.drawImage(img, (img.naturalWidth - sw) / 2, (img.naturalHeight - sh) / 2, sw, sh, px, py, pw, ph); x.strokeStyle = C.ink; x.lineWidth = 3; x.strokeRect(px, py, pw, ph); y = Math.max(y, py + ph - 4); } }
+    y += 26; x.fillStyle = C.ink; x.fillRect(PAD, y, W - PAD * 2, 4); y += 20;
+    for (const b of blocks) {
+      if (b.h) { y += 40; font(26, 700); x.fillStyle = C.accent; x.fillText(b.h, PAD, y); y += 14; }
+      else if (b.row) { const [a, v, flag] = b.row; font(30); const labs = wrap(a, LW - 24); font(30, flag ? 700 : 400); const lines = wrap(v, W - PAD * 2 - LW), h = 30 + Math.max(lines.length, labs.length) * 42;
+        font(30); x.fillStyle = C.muted; labs.forEach((ln, i) => x.fillText(ln, PAD, y + 42 + i * 42));
+        font(30, flag ? 700 : 400); x.fillStyle = flag ? C.crit : C.ink; lines.forEach((ln, i) => x.fillText(ln, PAD + LW, y + 42 + i * 42));
+        y += h; x.fillStyle = C.rule; x.fillRect(PAD, y, W - PAD * 2, 2); }
+      else if (b.li) { font(30); wrap("·  " + b.li, W - PAD * 2).forEach((ln, i) => { y += 46; x.fillStyle = C.ink; x.fillText(i ? "   " + ln : ln, PAD, y); }); y += 12; }
+      else if (b.warn) { font(31, 700); const lines = wrap(b.warn, W - PAD * 2 - 48), h = 34 + lines.length * 46; y += 16; x.fillStyle = C.critSoft; x.fillRect(PAD, y, W - PAD * 2, h); x.fillStyle = C.crit; x.fillRect(PAD, y, 8, h); lines.forEach((ln, i) => x.fillText(ln, PAD + 32, y + 50 + i * 46)); y += h; }
+    }
+    if (foot) { y += 40; font(27); x.fillStyle = C.muted; wrap(foot, W - PAD * 2).forEach((ln) => { y += 40; x.fillText(ln, PAD, y); }); }
+    y += 48; x.fillStyle = C.soft; x.fillRect(0, y, W, 72); font(26, 600); x.fillStyle = C.accent; x.fillText("오래곁에", PAD, y + 46); font(24); x.fillStyle = C.muted; x.textAlign = "right"; x.fillText(location.host, W - PAD, y + 46); x.textAlign = "left";
+    y += 72; const out = document.createElement("canvas"); out.width = W; out.height = y; out.getContext("2d").drawImage(cv, 0, 0);
+    return new Promise((res) => out.toBlob((bl) => res(bl), "image/png"));
+  }
+  async function shareBlob(blob, name, title, mime) {
+    if (!blob) { toast("이미지를 만들지 못했어요"); return; }
+    const file = new File([blob], name, { type: mime || "image/png" });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) { try { await navigator.share({ files: [file], title }); return; } catch (e) { if (e && e.name === "AbortError") return; } }
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+    toast("이미지를 저장했어요");
+  }
+  async function shareSitImage() {
+    toast("이미지를 만드는 중이에요");
+    const D = sitData(P()), p = D.p, B = [];
+    D.basics.slice(1).forEach((r) => B.push({ row: r }));
+    const sec = (h, list, flag) => { if (list.length) { B.push({ h }); list.forEach((r) => B.push({ row: [r[0], r[1], flag] })); } };
+    sec("연락처", D.contact); sec("밥", D.food); sec("약", D.med);
+    if (D.daily.length) { B.push({ h: "매일 챙겨 주세요" }); D.daily.forEach((t) => B.push({ li: t })); }
+    if (D.s.watch) { B.push({ h: "이럴 땐 바로 연락해 주세요" }); B.push({ warn: D.s.watch }); }
+    sec("병원", D.clinic); sec("그 밖에", D.more);
+    const blob = await sheetImage(p.name + " 돌봄 안내", ymd(now()) + " 작성 · 맡아 주셔서 고맙습니다", p, B, "밥·약·배변을 언제 했는지 메모해 주시면 돌아와서 기록에 옮길게요.");
+    shareBlob(blob, p.name + "-돌봄안내-" + iso(now()) + ".png", p.name + " 돌봄 안내");
+  }
+
+  // ---------- 함께한 날·기념일·추억 카드 ----------
+  // p.adopt: 우리 집에 온 날(YYYY-MM-DD). 없으면 함께한 날은 안 보여 줌
+  const daysWith = (p) => (p.adopt ? Math.max(0, Math.floor((sod(now()) - fromIso(p.adopt)) / DAY) + 1) : 0);
+  const comma = (n) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  // 다가오는 기념일 (오늘부터 within일 안): 생일·우리 집 온 날·함께한 100일 단위(1000일 전)와 1000일 단위
+  function annivs(p, within) {
+    const T = sod(now()), out = [], yearly = (isoD, kind) => { if (!isoD) return; const b = new Date(fromIso(isoD)), n = new Date(T);
+      for (const y of [n.getFullYear(), n.getFullYear() + 1]) { const d = new Date(y, b.getMonth(), b.getDate()).getTime(), yrs = y - b.getFullYear(); if (d >= T && d - T <= within * DAY && yrs >= 1) { out.push({ t: d, kind, n: yrs }); break; } } };
+    yearly(p.birth, "birth"); yearly(p.adopt, "adopt");
+    if (p.adopt) { const st = fromIso(p.adopt), dw = daysWith(p); for (let k = Math.ceil(dw / 100) * 100; k <= dw + within; k += 100) { if (k < 100 || (k > 1000 && k % 1000)) continue; const t = st + (k - 1) * DAY; if (t >= T && t - T <= within * DAY) out.push({ t: sod(t), kind: "days", n: k }); } }
+    return out.sort((a, b) => a.t - b.t);
+  }
+  const annivText = (p, a) => a.kind === "birth" ? `${p.name} ${a.n}번째 생일` : a.kind === "adopt" ? `${josa(p.name, "이", "가")} 우리 집에 온 지 ${a.n}년` : `${josa(p.name, "과", "와")} 함께한 지 ${comma(a.n)}일`;
+  function annivLine(p) {
+    const a = annivs(p, 7)[0], dw = daysWith(p); if (!a && !dw) return "";
+    const left = a ? Math.round((a.t - sod(now())) / DAY) : 0;
+    if (a && left === 0) return `<button type="button" class="annv today" data-act="memcard"><b>오늘은 ${esc(annivText(p, a))}이에요</b><span>추억 카드 만들기 ›</span></button>`;
+    return `<button type="button" class="annv" data-act="memcard"><span>${dw ? `함께한 지 <b>${comma(dw)}일째</b>` : ""}${a ? `${dw ? " · " : ""}${esc(annivText(p, a))} D-${left}` : ""}</span><span>추억 카드 ›</span></button>`;
+  }
+  let memKind = null;
+  function memOptions(p) {
+    const o = [], dw = daysWith(p), T = sod(now());
+    if (dw) o.push(["days", `함께한 지 ${comma(dw)}일째`]);
+    if (p.birth) { const b = new Date(fromIso(p.birth)), n = new Date(T); if (b.getMonth() === n.getMonth() && b.getDate() === n.getDate() && n.getFullYear() > b.getFullYear()) o.push(["birth", `${n.getFullYear() - b.getFullYear()}번째 생일`]); }
+    if (p.adopt) { const b = new Date(fromIso(p.adopt)), n = new Date(T); if (b.getMonth() === n.getMonth() && b.getDate() === n.getDate() && n.getFullYear() > b.getFullYear()) o.push(["adopt", `우리 집에 온 지 ${n.getFullYear() - b.getFullYear()}년`]); }
+    if (age(p)) o.push(["age", `${age(p)}`]);
+    o.push(["today", ymd(T)]);
+    return o;
+  }
+  function vMemory() {
+    const p = P(), opts = memOptions(p); if (!opts.some((o) => o[0] === memKind)) memKind = opts[0][0];
+    const head = opts.find((o) => o[0] === memKind)[1], up = annivs(p, 60);
+    return `<section><h2><span><span class="en">MEMORY</span>추억 카드</span></h2>
+    <div class="note" style="margin:0 0 8px">인스타 스토리 크기(세로) 그림으로 만들어요. 사진은 오늘 화면 큰 사진이 들어가요.</div>
+    <form class="form card" id="memform">
+      <label>우리 집에 온 날 <input id="m-adopt" type="date" value="${esc(p.adopt)}" max="${iso(now())}"></label>
+      ${p.adopt ? "" : '<div class="note" style="margin:-4px 0 0">넣으면 \'함께한 지 며칠째\'와 기념일을 챙겨 드려요. 대략이어도 괜찮아요.</div>'}
+      <label>큰 글씨<select id="m-kind">${opts.map(([k, t]) => `<option value="${k}" ${k === memKind ? "selected" : ""}>${esc(t)}</option>`).join("")}</select></label>
+      <label>한마디 (선택)<input id="m-msg" maxlength="40" value="${esc(p.memMsg)}" placeholder="예: 오늘도 내 옆에 있어 줘서 고마워" autocomplete="off"></label>
+    </form>
+    <div class="memprev" aria-hidden="true"><div class="mp-img${p.photo ? "" : " none"}"${bg(p)}></div><b>${esc(p.name)}</b><em>${esc(head)}</em>${p.memMsg ? `<i>${esc(p.memMsg)}</i>` : ""}<small>오래곁에</small></div>
+    <div class="lock"><button class="btn" data-act="mem-image" type="button">카드 저장·공유</button><button class="btn ghost" data-act="photo" data-pid="${p.id}" type="button">${p.photo ? "사진 바꾸기" : "사진 넣기"}</button></div>
+    ${up.length ? `<h3 class="subh">다가오는 기념일</h3><div class="list">${up.map((a) => `<div class="row"><span class="time">${md(a.t)}</span><span class="what">${esc(annivText(p, a))}</span><span class="who mono">${a.t === sod(now()) ? "오늘" : "D-" + Math.round((a.t - sod(now())) / DAY)}</span></div>`).join("")}</div>` : ""}
+    </section>`;
+  }
+  async function memImage(p, head, msg) {
+    try { if (document.fonts && document.fonts.ready) await document.fonts.ready; } catch (_) {}
+    const W = 1080, H = 1920, F = '"Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",sans-serif', C = { bg: "#F1ECE3", card: "#FBF8F1", ink: "#2F2A24", muted: "#7F7466", accent: "#4F6B4A", rule: "#E3D9C6" };
+    const cv = document.createElement("canvas"); cv.width = W; cv.height = H; const x = cv.getContext("2d");
+    const font = (sz, wt) => (x.font = `${wt || 400} ${sz}px ${F}`);
+    x.fillStyle = C.bg; x.fillRect(0, 0, W, H);
+    // 카드 바탕 (인스타 스토리 위아래 글자 영역을 피해 가운데에)
+    const cw = W - 144, pw0 = cw - 80, ch = 40 + Math.round(pw0 * 10 / 16) + 120 + 100 + (msg ? 90 + 58 : 0) + 230, cx = 72, cy = Math.max(200, Math.round((H - 260 - ch) / 2)); x.fillStyle = C.card; x.fillRect(cx, cy, cw, ch); x.strokeStyle = C.rule; x.lineWidth = 2; x.strokeRect(cx, cy, cw, ch);
+    const px = cx + 40, py = cy + 40, pw = cw - 80, ph = Math.round(pw * 10 / 16);
+    let drawn = false;
+    if (p.photo) { const img = new Image(); img.src = p.photo; try { await img.decode(); } catch (_) {}
+      if (img.naturalWidth) { const r = Math.max(pw / img.naturalWidth, ph / img.naturalHeight), sw = pw / r, sh = ph / r; x.drawImage(img, (img.naturalWidth - sw) / 2, (img.naturalHeight - sh) / 2, sw, sh, px, py, pw, ph); drawn = true; } }
+    if (!drawn) { x.fillStyle = "#D9CDBA"; x.fillRect(px, py, pw, ph); font(200, 700); x.fillStyle = C.card; x.textAlign = "center"; x.fillText(String(p.name || "").slice(0, 1), W / 2, py + ph / 2 + 70); x.textAlign = "left"; }
+    let y = py + ph + 120; x.textAlign = "center";
+    font(92, 700); x.fillStyle = C.ink; x.fillText(p.name, W / 2, y, pw);
+    y += 100; font(64, 700); x.fillStyle = C.accent; x.fillText(head, W / 2, y, pw);
+    if (msg) { y += 90; font(40); x.fillStyle = C.ink; const words = String(msg).split(" "); let line = "", lines = [];
+      for (const w of words) { if (x.measureText(line + w).width > pw - 40 && line) { lines.push(line.trim()); line = ""; } line += w + " "; } lines.push(line.trim());
+      lines.slice(0, 2).forEach((ln, i) => x.fillText(ln, W / 2, y + i * 58)); y += (Math.min(lines.length, 2) - 1) * 58; }
+    font(30); x.fillStyle = C.muted; x.fillText(ymd(now()), W / 2, cy + ch - 60);
+    x.fillStyle = C.accent; x.fillRect(W / 2 - 30, cy + ch - 130, 60, 4);
+    // 맨 아래 앱 이름
+    font(34, 700); x.fillStyle = C.accent; x.fillText("오래곁에", W / 2, H - 170); font(26); x.fillStyle = C.muted; x.fillText("노견·노묘 돌봄 기록 · " + location.host, W / 2, H - 122);
+    x.textAlign = "left";
+    return new Promise((res) => cv.toBlob((bl) => res(bl), "image/jpeg", 0.92));
+  }
+  async function shareMemImage() {
+    toast("카드를 만드는 중이에요");
+    const p = P(), opts = memOptions(p), head = (opts.find((o) => o[0] === memKind) || opts[0])[1];
+    const blob = await memImage(p, head, p.memMsg || "");
+    shareBlob(blob, p.name + "-추억카드-" + iso(now()) + ".jpg", p.name + " 추억 카드", "image/jpeg");
   }
 
   // ---------- 화면: 설정 ----------
@@ -568,6 +758,7 @@
     return `<div class="hero"><button type="button" class="heroimg${p.photo ? " has" : ""}" data-act="photo" data-pid="${p.id}" aria-label="${esc(p.name)} 사진 ${p.photo ? "바꾸기" : "넣기"}"${bg(p)}>${p.photo ? "" : `<span class="noimg">${CAM}<span>사진을 넣으면 여기에 크게 보여요</span></span>`}</button>
       <div class="who"><h1>${esc(p.name)}</h1><span>${esc([age(p), ...careL].filter(Boolean).join(" · ") || (p.species === "cat" ? "고양이" : "강아지"))}</span></div></div>
       ${items ? `<div class="memo"><div class="hand">오늘 ${esc(p.name)} 챙길 것</div><ul>${items}</ul></div>` : ""}
+      ${annivLine(p)}
       <div class="facts"><dl class="kv">${kv.map(([a, b]) => `<dt>${a}</dt><dd>${esc(b)}</dd>`).join("")}${mrow}${wrow}${p.allergy && p.allergy !== "없음" ? `<dt>알레르기</dt><dd>${esc(p.allergy)}</dd>` : ""}${crow}</dl>
       ${nx ? `<div class="alertline${nx.left > 7 ? " calm" : ""}"><i>●</i><span>다음: ${esc(nx.name)}</span><span class="d">${ddText(nx)}</span></div>` : '<div class="alertline calm"><i>●</i><span>일정 탭에서 접종·검진 일정을 넣어 두세요</span></div>'}</div>`;
   }
@@ -584,7 +775,7 @@
     $("#pethead").innerHTML = tab === "settings" ? "" : tab === "today" ? idCard(p) : `<div class="minihead">${mini(p)}<div><b>${esc(p.name)}</b><small>${esc(info(p))}</small></div></div>`;
     $("#pethead").hidden = tab === "settings";
     document.querySelectorAll("nav.tabs button").forEach((b) => b.setAttribute("aria-current", b.dataset.tab === tab ? "page" : "false"));
-    $("#view").innerHTML = { today: vToday, weight: vWeight, schedule: vSchedule, summary: vSummary, settings: vSettings }[tab]();
+    $("#view").innerHTML = { today: vToday, weight: vWeight, schedule: vSchedule, summary: vShare, settings: vSettings }[tab]();
   }
 
   // ---------- 동작 ----------
@@ -597,6 +788,7 @@
     const nabi = { id: uid(), name: "나비", species: "cat", breed: "코리안 숏헤어", birth: iso(at(10 * 365 + 100, 0, 0)), sex: "중성화 암컷", dx: "신장 수치 관찰 중", allergy: "", meds: "신장 보조제 하루 1회" };
     bori.stock = { count: 30, perDay: 2, at: sod(at(9, 0, 0)) }; bori.clinic = "우리동네동물병원"; bori.cphone = "02-000-0000"; bori.chours = "평일 9~20시, 일 휴무";
     nabi.stock = { count: 40, perDay: 1, at: sod(at(10, 0, 0)) }; nabi.clinic = "우리동네동물병원"; nabi.cphone = "02-000-0000";
+    bori.adopt = iso(at(12 * 365 + 200, 0, 0)); bori.sit = { owner: "나 010-0000-0000", food: "아침 8시·저녁 7시, 한 번에 종이컵 1/3", meds: "심장약 반 알을 아침·저녁 밥 먹은 뒤 간식에 싸서", watch: "밥을 두 끼 연속 안 먹거나, 잘 때 숨을 헐떡이면 바로 연락 주세요", habit: "천둥 치면 무서워해요. 안아 주면 진정돼요" };
     bori.foods = ["로얄캐닌 심장 처방식", "힐스 k/d"]; bori.snacks = ["져키", "덴탈껌", "고구마"];
     nabi.foods = ["신장 처방식 습식", "신장 처방식 건식"]; nabi.snacks = ["츄르"];
     const kong = { id: uid(), name: "콩이", species: "dog", breed: "토이 푸들", birth: iso(at(15 * 365 + 20, 0, 0)), sex: "중성화 암컷", dx: "당뇨, 인지장애", allergy: "", meds: "인슐린 하루 2회", care: ["diabetes", "ccd"], foods: ["당뇨 처방식"], snacks: [] };
@@ -657,6 +849,7 @@
     if (d.dellab) { S.labs = S.labs.filter((x) => x.id !== d.dellab); save(); toast("검사 기록을 지웠어요"); render(); return; }
     if (d.delr) { S.resp = S.resp.filter((r) => r.id !== d.delr); save(); toast("호흡수 기록을 지웠어요"); render(); return; }
     if (d.period) { period = +d.period; render(); return; }
+    if (d.sumv) { sumv = d.sumv; render(); return; }
     if (d.editpet) { editing = d.editpet; delPet = null; render(); scrollTo(0, 0); return; }
     switch (d.act) {
       case "add-pet": tab = "settings"; editing = "new"; render(); scrollTo(0, 0); return;
@@ -677,6 +870,9 @@
       case "photo-fit": { const q = S.pets.find((x) => x.id === d.pid); if (q && q.photo) openCrop(q.photo, q.id, false); return; }
       case "photo-del": { const q = S.pets.find((x) => x.id === d.pid); if (q) { delete q.photo; save(); toast("사진을 뺐어요"); render(); } return; }
       case "image": shareSummaryImage(); return;
+      case "sit-image": saveSit(); shareSitImage(); return;
+      case "mem-image": shareMemImage(); return;
+      case "memcard": tab = "summary"; sumv = "mem"; picker = null; render(); scrollTo(0, 0); return;
       case "install": if (installEvt) { const ev = installEvt; ev.prompt(); ev.userChoice.then((c) => { if (c && c.outcome === "accepted") { installEvt = null; toast("홈 화면에 설치했어요"); } render(); }, () => {}); } return;
       case "install-hide": lsSet("orae-install-hide", "1"); render(); return;
       case "inapp-hide": inappHide = true; render(); return;
@@ -744,15 +940,23 @@
     if (e.target.id === "fixat") { const l = S.logs.find((x) => x.id === fixId), t = new Date(e.target.value).getTime(); if (l && !isNaN(t)) { l.t = Math.min(t, now()); save(); toast(label(P(), l.k) + " " + (sod(l.t) < sod(now()) ? md(l.t) + " " : "") + hm(l.t) + "으로 고쳤어요"); render(); } return; }
     if (e.target.dataset && e.target.dataset.memo) { const p = P(); p.memoOff = !e.target.checked; save(); toast(p.memoOff ? "오늘 챙길 것을 껐어요" : "오늘 챙길 것을 켰어요"); render(); return; }
     if (e.target.dataset && e.target.dataset.chk) { const p = P(), cur = checks(p).map((c) => c[0]), k = e.target.dataset.chk; p.checks = e.target.checked ? cur.concat(cur.includes(k) ? [] : [k]) : cur.filter((x) => x !== k); save(); render(); return; }
+    if (e.target.id === "m-adopt") { const p = P(); if (e.target.value) p.adopt = e.target.value; else delete p.adopt; memKind = null; save(); render(); return; }
+    if (e.target.id === "m-kind") { memKind = e.target.value; render(); return; }
+    if (e.target.id === "m-msg") { const p = P(), m = e.target.value.trim(); if (m) p.memMsg = m; else delete p.memMsg; save(); render(); return; }
     if (e.target.id === "whenat") { when = e.target.value || 0; render(); return; }
     if (e.target.id === "me") { S.me = e.target.value; save(); toast(S.me + "(으)로 기록해요"); }
     if (e.target.id === "importfile" && e.target.files[0]) {
       const fr = new FileReader(); fr.onload = () => { try { const d = JSON.parse(fr.result); if (d.v !== 1 || !Array.isArray(d.pets)) throw 0; S = d; S.demo = false; S.resp = S.resp || []; S.labs = S.labs || []; S.pets.forEach((q) => { if (!q.care) q.care = guessCare(q.dx); }); save(); tab = "today"; toast("백업을 불러왔어요"); render(); } catch (_) { toast("오래곁에 백업 파일이 아니에요"); } }; fr.readAsText(e.target.files[0]);
     }
   });
+  // 맡길 때 안내서: 적는 동안 바로바로 저장 (화면은 다시 그리지 않음)
+  let sitTimer = null;
+  document.addEventListener("input", (e) => { if (e.target.dataset && e.target.dataset.sit) { clearTimeout(sitTimer); sitTimer = setTimeout(saveSit, 400); } });
   document.addEventListener("submit", (e) => {
     e.preventDefault();
     const id = e.target.id, v = (s) => ($(s) ? $(s).value.trim() : "");
+    if (id === "sitform") { saveSit(); toast("안내서를 저장했어요"); render(); const sh = $("#sheet"); sh && sh.scrollIntoView({ block: "start", behavior: "smooth" }); return; }
+    if (id === "memform") { const m = $("#m-msg"); if (m) { const p = P(), t = m.value.trim(); if (t) p.memMsg = t; else delete p.memMsg; save(); render(); } return; }
     if (id === "petform") {
       const name = v("#f-name"); if (!name) { toast("이름을 넣어 주세요"); return; }
       const data = { name, species: (document.querySelector("input[name=sp]:checked") || {}).value || "dog", breed: v("#f-breed"), birth: v("#f-birth"), sex: v("#f-sex"), dx: v("#f-dx"), allergy: v("#f-allergy"), meds: v("#f-meds"), clinic: v("#f-clinic"), cphone: v("#f-cphone"), chours: v("#f-chours"), care: [...document.querySelectorAll("input[name=care]:checked")].map((x) => x.value) };
